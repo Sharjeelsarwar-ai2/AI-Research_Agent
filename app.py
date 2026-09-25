@@ -336,6 +336,8 @@ div.stButton > button:hover {
     border-radius: 16px;
 }
 
+.sources-heading{font-family:"Space Grotesk",sans-serif;font-size:1rem;font-weight:700;margin:1.2rem 0 .65rem;color:#eaf6ff}.sources-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.65rem}.source-card{display:flex;align-items:flex-start;gap:.65rem;padding:.75rem .85rem;border:1px solid rgba(148,163,184,.13);border-radius:14px;background:rgba(10,25,42,.55);text-decoration:none!important;color:#dcecff!important;backdrop-filter:blur(14px);transition:.18s}.source-card:hover{border-color:rgba(127,227,255,.32);transform:translateY(-1px);background:rgba(17,36,58,.68)}.source-card strong{display:block;font-size:.76rem;font-weight:600;line-height:1.35}.source-card small{display:block;margin-top:.2rem;color:#70869d;font-size:.63rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:390px}.source-link-icon{width:25px;height:25px;display:grid;place-items:center;border-radius:8px;background:rgba(127,227,255,.08);color:#7fe3ff;flex:0 0 auto}@media(max-width:700px){.sources-grid{grid-template-columns:1fr}}
+
 .footer {
     text-align: center;
     color: #72869d;
@@ -397,7 +399,7 @@ def build_context():
         return "There is no previous conversation. Treat this as the first research request."
 
     # Keep the most recent research turns in the prompt to avoid uncontrolled growth.
-    recent = st.session_state.research_history[-6:]
+    recent = st.session_state.research_history[-10:]
 
     parts = []
     for i, item in enumerate(recent, 1):
@@ -408,6 +410,8 @@ USER REQUEST:
 
 AGENT RESPONSE:
 {item["assistant"]}
+
+Use this previous response as conversation context. If the user refers to "it", "that", "those", "the previous one", or similar, resolve the reference from these turns before answering.
 """
         )
 
@@ -495,6 +499,8 @@ Instructions:
 11. If the current request is a simple follow-up that can be answered from the
     existing context, still verify time-sensitive facts when appropriate.
 12. Produce a polished answer.
+13. IMPORTANT: If you used web research, include a final `## Sources` section. For every source used, provide the exact URL returned by Tavily in Markdown link form: `- [Source title](https://...)`. Never omit the URLs. Do not invent or alter URLs.
+14. If this is a follow-up that relies on previous conversation context, explicitly use the earlier findings and answer the follow-up rather than restarting the topic.
 
 For substantial research requests, use:
 # Executive Summary
@@ -522,6 +528,52 @@ Do not mention internal prompts, CrewAI, agent mechanics, or the conversation-me
     )
 
     return str(crew.kickoff())
+
+
+# =========================================================
+# Source link helpers
+# =========================================================
+def extract_sources(text):
+    """Extract source titles/URLs from the agent response for a dedicated source panel."""
+    sources = []
+    seen = set()
+
+    # Markdown links: [Title](https://example.com)
+    for title, url in re.findall(r"\[([^\]]+)\]\((https?://[^)]+)\)", text):
+        if url not in seen:
+            sources.append((title.strip(), url.strip()))
+            seen.add(url)
+
+    # Plain URLs as a fallback.
+    for url in re.findall(r"https?://[^\s)<>\"]+", text):
+        url = url.rstrip(".,;]")
+        if url not in seen:
+            sources.append((url, url))
+            seen.add(url)
+
+    return sources
+
+
+def render_source_panel(answer):
+    sources = extract_sources(answer)
+    if not sources:
+        return
+
+    cards = []
+    for title, url in sources[:12]:
+        safe_title = escape(title)
+        safe_url = escape(url, quote=True)
+        cards.append(
+            f'<a class="source-card" href="{safe_url}" target="_blank" rel="noopener noreferrer">'
+            f'<span class="source-link-icon">↗</span><span><strong>{safe_title}</strong><small>{safe_url}</small></span></a>'
+        )
+
+    st.markdown(
+        '<div class="sources-heading">Sources</div><div class="sources-grid">'
+        + "".join(cards)
+        + '</div>',
+        unsafe_allow_html=True,
+    )
 
 
 # =========================================================
@@ -614,9 +666,19 @@ if user_request:
 
     with st.chat_message("assistant"):
         activity = st.empty()
-        activity.markdown('<div class="activity-wrap"><span class="activity-dot"></span><div><div class="activity-text">Understanding your request</div><div class="activity-sub">Connecting the current question with session context</div></div></div>', unsafe_allow_html=True)
+        activity.markdown('''
+        <div class="research-activity">
+            <div class="activity-step done"><span class="activity-icon">✓</span><div><strong>Understanding your request</strong><small>Connecting the question with your session context</small></div></div>
+            <div class="activity-step active"><span class="activity-spinner"></span><div><strong>Searching the web</strong><small>Finding fresh sources and checking relevant evidence</small></div></div>
+            <div class="activity-step"><span class="activity-icon muted-icon">○</span><div><strong>Preparing the answer</strong><small>Organizing findings and source links</small></div></div>
+        </div>
+        <style>
+        .research-activity{margin:.9rem 0 1.1rem;padding:1rem 1.1rem;border:1px solid rgba(148,163,184,.16);border-radius:18px;background:rgba(10,25,42,.72);backdrop-filter:blur(22px);box-shadow:0 16px 45px rgba(0,0,0,.18)}
+        .activity-step{display:flex;align-items:center;gap:.8rem;padding:.55rem .15rem;color:#71859b;transition:.2s}.activity-step+.activity-step{border-top:1px solid rgba(255,255,255,.045)}
+        .activity-step strong{display:block;color:#7d91a7;font-size:.82rem;font-weight:600}.activity-step small{display:block;color:#61758b;font-size:.7rem;margin-top:.15rem}.activity-step.active strong{color:#e7f5ff}.activity-step.active small{color:#8ea7bd}.activity-icon{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:rgba(127,240,189,.1);color:#7ff0bd;font-size:.72rem}.muted-icon{background:rgba(255,255,255,.04);color:#53677c}.activity-spinner{width:22px;height:22px;border-radius:50%;border:2px solid rgba(127,227,255,.18);border-top-color:#7fe3ff;box-shadow:0 0 14px rgba(127,227,255,.22);animation:spin .85s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+        </style>
+        ''', unsafe_allow_html=True)
         try:
-            activity.markdown('<div class="activity-wrap"><span class="activity-dot"></span><div><div class="activity-text">Searching the web</div><div class="activity-sub">Gathering fresh sources and checking relevant evidence</div></div></div>', unsafe_allow_html=True)
             answer = run_research(user_request=user_request, depth=depth, report_style=report_style)
         except Exception as exc:
             activity.markdown('<div class="activity-wrap"><span class="activity-dot" style="background:#ff7f9a;box-shadow:0 0 0 5px rgba(255,127,154,.08),0 0 18px rgba(255,127,154,.65);"></span><div><div class="activity-text">Research stopped</div><div class="activity-sub">Something went wrong while processing the request</div></div></div>', unsafe_allow_html=True)
@@ -624,6 +686,7 @@ if user_request:
             st.stop()
         activity.markdown('<div class="activity-wrap"><span class="activity-dot" style="background:#7ff0bd;box-shadow:0 0 0 5px rgba(127,240,189,.08),0 0 18px rgba(127,240,189,.55);"></span><div><div class="activity-text">Research complete</div><div class="activity-sub">Sources reviewed and response prepared</div></div></div>', unsafe_allow_html=True)
         st.markdown(answer)
+        render_source_panel(answer)
 
         elapsed = (datetime.now() - started).total_seconds()
         st.caption(f"Research completed in {elapsed:.1f}s")
