@@ -1,4 +1,5 @@
 import re
+from io import BytesIO
 from datetime import datetime
 from html import escape
 from urllib.parse import urlparse
@@ -588,6 +589,73 @@ def render_source_panel(answer):
     )
 
 
+def build_pdf_report(answer, query):
+    """Build a polished, standalone PDF report using ReportLab."""
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import LETTER
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.lib.units import inch
+    from reportlab.platypus import HRFlowable, Paragraph, SimpleDocTemplate, Spacer
+
+    def inline_markup(text):
+        rendered = escape(text)
+        rendered = re.sub(
+            r"\[([^\]]+)\]\((https?://[^)]+)\)",
+            lambda match: f'<link href="{escape(match.group(2), quote=True)}" color="#147c9f">{escape(match.group(1))}</link>',
+            rendered,
+        )
+        rendered = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", rendered)
+        return rendered
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer, pagesize=LETTER, rightMargin=.68 * inch, leftMargin=.68 * inch,
+        topMargin=.72 * inch, bottomMargin=.62 * inch,
+        title=f"{query} — Nexus Research", author="Nexus Research AI",
+    )
+    stylesheet = getSampleStyleSheet()
+    title_style = ParagraphStyle("NexusTitle", parent=stylesheet["Title"], fontName="Helvetica-Bold", fontSize=24, leading=29, textColor=colors.HexColor("#10233d"), spaceAfter=8)
+    meta_style = ParagraphStyle("NexusMeta", parent=stylesheet["Normal"], fontName="Helvetica", fontSize=8.5, leading=12, textColor=colors.HexColor("#6b7f93"), spaceAfter=14)
+    heading_style = ParagraphStyle("NexusHeading", parent=stylesheet["Heading2"], fontName="Helvetica-Bold", fontSize=15, leading=19, textColor=colors.HexColor("#123f5c"), spaceBefore=14, spaceAfter=6)
+    subheading_style = ParagraphStyle("NexusSubheading", parent=stylesheet["Heading3"], fontName="Helvetica-Bold", fontSize=11.5, leading=15, textColor=colors.HexColor("#1b5f7b"), spaceBefore=10, spaceAfter=4)
+    body_style = ParagraphStyle("NexusBody", parent=stylesheet["BodyText"], fontName="Helvetica", fontSize=9.7, leading=14.5, textColor=colors.HexColor("#26384b"), spaceAfter=7)
+    bullet_style = ParagraphStyle("NexusBullet", parent=body_style, leftIndent=14, firstLineIndent=-8, bulletIndent=0, spaceAfter=4)
+
+    story = [Spacer(1, .20 * inch), Paragraph(inline_markup(query), title_style), Paragraph(f"NEXUS RESEARCH AI &nbsp;·&nbsp; Exported {datetime.now().strftime('%B %d, %Y at %H:%M')}", meta_style), HRFlowable(width="100%", thickness=1.2, color=colors.HexColor("#8de6ff"), spaceAfter=14)]
+    for raw_line in answer.splitlines():
+        line = raw_line.strip()
+        if not line:
+            story.append(Spacer(1, 3))
+        elif line.startswith("### "):
+            story.append(Paragraph(inline_markup(line[4:]), subheading_style))
+        elif line.startswith("## "):
+            story.append(Paragraph(inline_markup(line[3:]), heading_style))
+        elif line.startswith("# "):
+            story.append(Paragraph(inline_markup(line[2:]), heading_style))
+        elif re.match(r"^[-*]\s+", line):
+            story.append(Paragraph(f"• {inline_markup(re.sub(r'^[-*]\s+', '', line))}", bullet_style))
+        else:
+            story.append(Paragraph(inline_markup(line), body_style))
+
+    def draw_page(canvas, _doc):
+        canvas.saveState()
+        width, height = LETTER
+        canvas.setFillColor(colors.HexColor("#0a1c31"))
+        canvas.rect(0, height - .28 * inch, width, .28 * inch, fill=1, stroke=0)
+        canvas.setFillColor(colors.HexColor("#8de6ff"))
+        canvas.setFont("Helvetica-Bold", 8)
+        canvas.drawString(.68 * inch, height - .19 * inch, "NEXUS RESEARCH")
+        canvas.setFillColor(colors.HexColor("#73879b"))
+        canvas.setFont("Helvetica", 8)
+        canvas.drawRightString(width - .68 * inch, .34 * inch, f"Nexus Research AI  ·  Page {canvas.getPageNumber()}")
+        canvas.setStrokeColor(colors.HexColor("#d9e4eb"))
+        canvas.line(.68 * inch, .49 * inch, width - .68 * inch, .49 * inch)
+        canvas.restoreState()
+
+    doc.build(story, onFirstPage=draw_page, onLaterPages=draw_page)
+    return buffer.getvalue()
+
+
 def render_export_panel(answer, query):
     """Render native Streamlit downloads for the current research result."""
     plain_text = re.sub(r"[`*_>#]", "", answer)
@@ -602,8 +670,15 @@ def render_export_panel(answer, query):
         f"<pre>{escape(answer)}</pre></body></html>"
     )
 
+    try:
+        pdf_report = build_pdf_report(answer, query)
+        pdf_error = None
+    except ImportError:
+        pdf_report = None
+        pdf_error = "Add reportlab>=4.0 to requirements.txt to enable PDF export."
+
     st.markdown('<div class="export-panel"><div class="export-label">Export this research</div></div>', unsafe_allow_html=True)
-    export_cols = st.columns(3)
+    export_cols = st.columns(4)
     safe_name = re.sub(r"[^a-zA-Z0-9]+", "-", query.lower()).strip("-")[:48] or "nexus-research"
     with export_cols[0]:
         st.download_button("↓ Markdown", data=answer, file_name=f"{safe_name}.md", mime="text/markdown", use_container_width=True)
@@ -611,6 +686,11 @@ def render_export_panel(answer, query):
         st.download_button("↓ Text", data=plain_text, file_name=f"{safe_name}.txt", mime="text/plain", use_container_width=True)
     with export_cols[2]:
         st.download_button("↓ HTML", data=html_report, file_name=f"{safe_name}.html", mime="text/html", use_container_width=True)
+    with export_cols[3]:
+        if pdf_report:
+            st.download_button("↓ PDF", data=pdf_report, file_name=f"{safe_name}.pdf", mime="application/pdf", use_container_width=True)
+        else:
+            st.caption(pdf_error)
 
 
 # =========================================================
