@@ -448,13 +448,38 @@ div.stButton > button { background:linear-gradient(110deg,#128bb1,#6658c3) !impo
 div[data-testid="stHorizontalBlock"]:has(.nav-brand) .stSelectbox,
 div[data-testid="stHorizontalBlock"]:has(.nav-brand) [data-baseweb="select"],
 div[data-testid="stHorizontalBlock"]:has(.nav-brand) [data-baseweb="select"] > div {
-    color:#1b3551 !important;
+    color:#163653 !important; background:rgba(235,245,252,.96) !important;
+}
+div[data-testid="stHorizontalBlock"]:has(.nav-brand) {
+    background:linear-gradient(105deg,rgba(221,248,252,.97) 0%,rgba(236,243,255,.96) 48%,rgba(239,231,255,.96) 100%) !important;
+    border:1px solid rgba(36,111,153,.22) !important;
+    box-shadow:0 20px 55px rgba(54,106,150,.19),inset 0 1px 0 rgba(255,255,255,.98) !important;
 }
 div[data-testid="stHorizontalBlock"]:has(.nav-brand) [data-baseweb="select"] * {
-    color:#1b3551 !important;
-    -webkit-text-fill-color:#1b3551 !important;
+    color:#163653 !important;
+    -webkit-text-fill-color:#163653 !important;
+    opacity:1 !important;
 }
 div[data-testid="stHorizontalBlock"]:has(.nav-brand) [data-baseweb="select"] svg { fill:#1b5e7e !important; color:#1b5e7e !important; }
+div[data-testid="stHorizontalBlock"]:has(.nav-brand) [data-testid="stSelectbox"] div,
+div[data-testid="stHorizontalBlock"]:has(.nav-brand) [data-testid="stSelectbox"] span,
+div[data-testid="stHorizontalBlock"]:has(.nav-brand) [data-testid="stSelectbox"] input {
+    color:#163653 !important; -webkit-text-fill-color:#163653 !important; opacity:1 !important;
+}
+[data-testid="stChatMessage"] { color:#193752 !important; opacity:1 !important; }
+[data-testid="stChatMessage"] [data-testid="stMarkdownContainer"],
+[data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] p,
+[data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] li,
+[data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] strong,
+[data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] em,
+[data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] h1,
+[data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] h2,
+[data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] h3 {
+    color:#193752 !important; opacity:1 !important; visibility:visible !important;
+}
+[data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] * {
+    visibility:visible !important; opacity:1 !important;
+}
 [data-testid="stChatInput"] button {
     min-width:42px !important; min-height:42px !important; border:0 !important; border-radius:12px !important;
     background:linear-gradient(135deg,#118bb4,#6557c1) !important; color:#fff !important; opacity:1 !important;
