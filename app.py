@@ -293,24 +293,29 @@ div.stButton > button:hover {
     transform: translateY(-1px);
 }
 
-/* Floating Claude-style chat composer */
+/* Restored wide floating glass chat dock */
 [data-testid="stBottomBlockContainer"] {
-    position:fixed !important; left:0 !important; right:0 !important; bottom:18px !important;
-    z-index:999998 !important; background:transparent !important; border:0 !important;
-    box-shadow:none !important; padding:0 !important;
+    position:fixed !important;
+    left:0 !important;
+    right:0 !important;
+    bottom:18px !important;
+    z-index:999998 !important;
+    background:transparent !important;
+    border:0 !important;
+    box-shadow:none !important;
+    padding:0 !important;
 }
 
 [data-testid="stBottomBlockContainer"] > div {
-    width:min(940px,calc(100vw - 2rem)) !important; margin:0 auto !important; padding:.48rem !important;
-    border:1px solid rgba(177,210,236,.22) !important; border-radius:28px !important;
-    background:linear-gradient(135deg,rgba(16,32,52,.90),rgba(25,28,57,.84)) !important;
-    backdrop-filter:blur(30px) saturate(175%) !important; -webkit-backdrop-filter:blur(30px) saturate(175%) !important;
-    box-shadow:0 26px 76px rgba(0,0,0,.48),inset 0 1px 0 rgba(255,255,255,.10) !important;
-}
-
-[data-testid="stBottomBlockContainer"] > div::before {
-    content:""; display:block; height:2px; width:72px; margin:-.48rem auto .35rem; border-radius:99px;
-    background:linear-gradient(90deg,transparent,var(--cyan),transparent); opacity:.72;
+    width:min(1120px,calc(100vw - 2rem)) !important;
+    margin:0 auto !important;
+    padding:.55rem !important;
+    border:1px solid rgba(148,163,184,.18) !important;
+    border-radius:25px !important;
+    background:linear-gradient(135deg,rgba(15,30,49,.84),rgba(23,27,52,.78)) !important;
+    backdrop-filter:blur(26px) saturate(160%) !important;
+    -webkit-backdrop-filter:blur(26px) saturate(160%) !important;
+    box-shadow:0 20px 60px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.07) !important;
 }
 
 [data-testid="stChatInput"] {
