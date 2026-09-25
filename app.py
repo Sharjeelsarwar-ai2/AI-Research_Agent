@@ -47,6 +47,10 @@ if "research_history" not in st.session_state:
 if "live_sources" not in st.session_state:
     st.session_state.live_sources = []
 
+# CrewAI can execute tools outside Streamlit's immediate script context. Keep
+# a process-level buffer as a reliable citation bridge for the active run.
+LIVE_SOURCE_BUFFER = []
+
 # =========================================================
 # Glassmorphism UI
 # =========================================================
@@ -409,8 +413,14 @@ def tavily_web_search(query: str) -> str:
             "published": item.get("published_date") or item.get("date") or "Live result",
             "snippet": item.get("content") or item.get("raw_content") or "",
         }
-        if url and not any(source.get("url") == url for source in st.session_state.live_sources):
-            st.session_state.live_sources.append(live_record)
+        if url:
+            if not any(source.get("url") == url for source in LIVE_SOURCE_BUFFER):
+                LIVE_SOURCE_BUFFER.append(live_record)
+            try:
+                if not any(source.get("url") == url for source in st.session_state.live_sources):
+                    st.session_state.live_sources.append(live_record)
+            except Exception:
+                pass
         content = item.get("raw_content") or item.get("content") or ""
         content = re.sub(r"\s+", " ", content).strip()[:6000]
 
@@ -573,7 +583,10 @@ Do not mention internal prompts, CrewAI, agent mechanics, or the conversation-me
 
     # Make source rendering deterministic: the UI must not depend on the model
     # remembering to repeat URLs that were already returned by Tavily.
-    live_sources = st.session_state.get("live_sources", [])
+    live_sources = list(LIVE_SOURCE_BUFFER)
+    if not live_sources:
+        live_sources = st.session_state.get("live_sources", [])
+    st.session_state.live_sources = list(live_sources)
     if live_sources:
         existing_urls = {url for _title, url in extract_sources(answer)}
         citation_lines = []
@@ -687,6 +700,17 @@ def render_analytics_panel():
 def render_source_panel(answer):
     sources = extract_sources(answer)
     if not sources:
+        fallback_sources = st.session_state.get("live_sources", []) or LIVE_SOURCE_BUFFER
+        sources = [
+            (source.get("title", "Untitled source"), source.get("url", ""))
+            for source in fallback_sources
+            if source.get("url")
+        ]
+    if not sources:
+        st.markdown(
+            '<div class="sources-heading">Sources <span>Live URLs were not returned for this run</span></div>',
+            unsafe_allow_html=True,
+        )
         return
 
     cards = []
@@ -711,6 +735,7 @@ def render_source_panel(answer):
 
 def render_live_sources(sources):
     """Render the exact live-search records captured during the current run."""
+    sources = sources or LIVE_SOURCE_BUFFER
     if not sources:
         return
 
@@ -913,6 +938,7 @@ with nav_action:
         st.session_state.messages = []
         st.session_state.research_history = []
         st.session_state.live_sources = []
+        LIVE_SOURCE_BUFFER.clear()
         st.rerun()
 
 # =========================================================
@@ -991,6 +1017,7 @@ user_request = st.chat_input(
 
 if user_request:
     st.session_state.live_sources = []
+    LIVE_SOURCE_BUFFER.clear()
     st.session_state.messages.append(
         {"role": "user", "content": user_request}
     )
