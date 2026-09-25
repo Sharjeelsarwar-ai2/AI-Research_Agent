@@ -633,7 +633,8 @@ def build_pdf_report(answer, query):
         elif line.startswith("# "):
             story.append(Paragraph(inline_markup(line[2:]), heading_style))
         elif re.match(r"^[-*]\s+", line):
-            story.append(Paragraph(f"• {inline_markup(re.sub(r'^[-*]\s+', '', line))}", bullet_style))
+            bullet_text = re.sub(r"^[-*]\s+", "", line)
+            story.append(Paragraph(f"• {inline_markup(bullet_text)}", bullet_style))
         else:
             story.append(Paragraph(inline_markup(line), body_style))
 
