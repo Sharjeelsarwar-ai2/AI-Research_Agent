@@ -436,6 +436,32 @@ div.stButton > button { background:linear-gradient(110deg,#128bb1,#6658c3) !impo
 .export-panel { background:rgba(255,255,255,.64) !important; border-color:rgba(37,87,124,.13) !important; }.export-label { color:#61788e !important; }
 .analytics-heading,.sources-heading,.live-sources-heading { color:#1b3956 !important; }.analytics-heading span,.sources-heading span,.live-sources-heading span { color:#71869b !important; }
 .trend-chip { background:rgba(235,248,253,.88) !important; border-color:rgba(24,133,169,.15) !important; color:#29445f !important; }.trend-chip b { color:#087ea7 !important; }
+
+/* High-contrast controls on the bright theme */
+.stApp {
+    background:
+        radial-gradient(720px 420px at 0% 0%,rgba(73,201,235,.30),transparent 68%),
+        radial-gradient(760px 480px at 100% 0%,rgba(135,119,238,.25),transparent 66%),
+        radial-gradient(900px 520px at 50% 110%,rgba(94,177,232,.16),transparent 70%),
+        linear-gradient(135deg,#f7fcff 0%,#eef5ff 52%,#f7f5ff 100%) !important;
+}
+div[data-testid="stHorizontalBlock"]:has(.nav-brand) .stSelectbox,
+div[data-testid="stHorizontalBlock"]:has(.nav-brand) [data-baseweb="select"],
+div[data-testid="stHorizontalBlock"]:has(.nav-brand) [data-baseweb="select"] > div {
+    color:#1b3551 !important;
+}
+div[data-testid="stHorizontalBlock"]:has(.nav-brand) [data-baseweb="select"] * {
+    color:#1b3551 !important;
+    -webkit-text-fill-color:#1b3551 !important;
+}
+div[data-testid="stHorizontalBlock"]:has(.nav-brand) [data-baseweb="select"] svg { fill:#1b5e7e !important; color:#1b5e7e !important; }
+[data-testid="stChatInput"] button {
+    min-width:42px !important; min-height:42px !important; border:0 !important; border-radius:12px !important;
+    background:linear-gradient(135deg,#118bb4,#6557c1) !important; color:#fff !important; opacity:1 !important;
+    box-shadow:0 8px 18px rgba(39,111,170,.22) !important;
+}
+[data-testid="stChatInput"] button svg { color:#fff !important; fill:#fff !important; stroke:#fff !important; opacity:1 !important; }
+[data-testid="stChatInput"] button:hover { background:linear-gradient(135deg,#0c789f,#5548ae) !important; transform:translateY(-1px); }
 </style>
 """,
     unsafe_allow_html=True,
