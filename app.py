@@ -334,6 +334,10 @@ div.stButton > button:hover {
     box-shadow:0 0 0 3px rgba(127,227,255,.06) !important;
 }
 
+/* Text-first user turns: only the assistant carries an avatar. */
+.user-message { margin:1.05rem 0; padding:1rem 1.15rem; border:1px solid rgba(141,230,255,.14); border-radius:18px 18px 6px 18px; background:linear-gradient(135deg,rgba(34,69,101,.44),rgba(25,35,70,.34)); color:#eaf6ff; line-height:1.65; box-shadow:0 12px 30px rgba(0,0,0,.12); }
+.user-message-label { margin-bottom:.35rem; color:#8de6ff; font-size:.68rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; }
+
 [data-testid="stExpander"] {
     background: rgba(12,27,46,.52);
     border: 1px solid var(--border);
@@ -645,8 +649,10 @@ for message in st.session_state.messages:
     role = message["role"]
 
     if role == "user":
-        with st.chat_message("user", avatar=" "):
-            st.markdown(message["content"])
+        st.markdown(
+            f'<div class="user-message"><div class="user-message-label">You</div>{escape(message["content"])}</div>',
+            unsafe_allow_html=True,
+        )
     else:
         with st.chat_message("assistant", avatar="✦"):
             st.markdown(message["content"])
@@ -663,8 +669,10 @@ if user_request:
         {"role": "user", "content": user_request}
     )
 
-    with st.chat_message("user", avatar=" "):
-        st.markdown(user_request)
+    st.markdown(
+        f'<div class="user-message"><div class="user-message-label">You</div>{escape(user_request)}</div>',
+        unsafe_allow_html=True,
+    )
 
     started = datetime.now()
 
