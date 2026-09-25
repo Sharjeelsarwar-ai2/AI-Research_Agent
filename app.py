@@ -44,6 +44,9 @@ if "messages" not in st.session_state:
 if "research_history" not in st.session_state:
     st.session_state.research_history = []
 
+if "live_sources" not in st.session_state:
+    st.session_state.live_sources = []
+
 # =========================================================
 # Glassmorphism UI
 # =========================================================
@@ -354,6 +357,7 @@ div.stButton > button:hover {
 
 .sources-heading{font-family:"Space Grotesk",sans-serif;font-size:1rem;font-weight:700;margin:1.2rem 0 .65rem;color:#eaf6ff}.sources-heading span{color:#7891a8;font-size:.72rem;font-family:"DM Sans",sans-serif;font-weight:500;margin-left:.4rem}.sources-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.65rem}.source-card{display:flex;align-items:flex-start;gap:.65rem;padding:.82rem .9rem;border:1px solid rgba(148,163,184,.13);border-radius:16px;background:linear-gradient(135deg,rgba(13,31,51,.72),rgba(18,28,53,.58));text-decoration:none!important;color:#dcecff!important;backdrop-filter:blur(14px);transition:.2s;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}.source-card:hover{border-color:rgba(127,227,255,.42);transform:translateY(-2px);background:linear-gradient(135deg,rgba(19,46,70,.82),rgba(31,35,70,.68));box-shadow:0 12px 30px rgba(0,0,0,.18),inset 0 1px 0 rgba(255,255,255,.07)}.source-card strong{display:block;font-size:.78rem;font-weight:650;line-height:1.4}.source-card small{display:block;margin-top:.25rem;color:#7891a8;font-size:.64rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:390px}.source-card .source-number{color:#8de6ff;font-size:.65rem;font-weight:700;letter-spacing:.06em}.source-link-icon{width:27px;height:27px;display:grid;place-items:center;border-radius:9px;background:rgba(127,227,255,.09);color:#7fe3ff;flex:0 0 auto}.export-panel{margin-top:1.1rem;padding:.85rem 1rem;border:1px solid rgba(166,190,214,.13);border-radius:17px;background:rgba(9,23,39,.42)}.export-label{color:#8fa6ba;font-size:.7rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;margin-bottom:.55rem}@media(max-width:700px){.sources-grid{grid-template-columns:1fr}}
 .analytics-heading{font-family:"Space Grotesk",sans-serif;font-size:1.02rem;font-weight:700;margin:1.35rem 0 .65rem;color:#eaf6ff}.analytics-heading span{font-family:"DM Sans",sans-serif;color:#7891a8;font-size:.73rem;font-weight:500;margin-left:.45rem}.trend-cloud{display:flex;flex-wrap:wrap;gap:.45rem;margin-top:.7rem}.trend-chip{display:inline-flex;align-items:center;gap:.38rem;padding:.4rem .62rem;border:1px solid rgba(141,230,255,.15);border-radius:999px;background:rgba(16,39,61,.58);color:#d8ecfa;font-size:.73rem}.trend-chip b{color:#8de6ff;font-size:.63rem}.trend-chip em{font-style:normal;color:#b6a4ff;font-weight:700}.analytics-shell{padding:1rem;border:1px solid rgba(166,190,214,.13);border-radius:20px;background:rgba(10,24,41,.38)}
+.live-sources-heading{font-family:"Space Grotesk",sans-serif;font-size:1rem;font-weight:700;margin:1.25rem 0 .65rem;color:#eaf6ff}.live-sources-heading span{font-family:"DM Sans",sans-serif;color:#7891a8;font-size:.7rem;font-weight:500;margin-left:.45rem}.live-source-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.65rem}.live-source-card{display:flex;align-items:flex-start;gap:.6rem;padding:.78rem .85rem;border:1px solid rgba(145,241,197,.15);border-radius:15px;background:linear-gradient(135deg,rgba(12,37,48,.72),rgba(16,31,53,.65));text-decoration:none!important;color:#dcecff!important;transition:.2s;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}.live-source-card:hover{transform:translateY(-2px);border-color:rgba(145,241,197,.45);box-shadow:0 12px 28px rgba(0,0,0,.18)}.live-source-card strong{display:block;font-size:.76rem;line-height:1.35}.live-source-card small{display:block;color:#91f1c5;font-size:.63rem;margin-top:.2rem}.live-source-card em{display:block;color:#7e96a9;font-size:.66rem;font-style:normal;line-height:1.4;margin-top:.28rem}.live-source-card>b{margin-left:auto;color:#91f1c5}.live-source-badge{color:#91f1c5;font-size:.62rem;font-weight:800;letter-spacing:.07em;white-space:nowrap}@media(max-width:700px){.live-source-grid{grid-template-columns:1fr}}
 
 .footer {
     text-align: center;
@@ -395,6 +399,15 @@ def tavily_web_search(query: str) -> str:
     for i, item in enumerate(results, 1):
         title = item.get("title", "Untitled")
         url = item.get("url", "")
+        live_record = {
+            "title": title,
+            "url": url,
+            "domain": urlparse(url).netloc.replace("www.", ""),
+            "published": item.get("published_date") or item.get("date") or "Live result",
+            "snippet": item.get("content") or item.get("raw_content") or "",
+        }
+        if url and not any(source.get("url") == url for source in st.session_state.live_sources):
+            st.session_state.live_sources.append(live_record)
         content = item.get("raw_content") or item.get("content") or ""
         content = re.sub(r"\s+", " ", content).strip()[:6000]
 
@@ -509,6 +522,8 @@ Instructions:
 4. Use Tavily Web Search for web research.
 5. Refine searches when the evidence is incomplete.
 6. Prefer primary, official, academic, or otherwise authoritative sources.
+   For paper-focused requests, actively seek current scholarly records from sources such as
+   arXiv, PubMed, Semantic Scholar, Crossref, ACM, IEEE, or official institutional repositories.
 7. Cross-check important factual claims.
 8. Distinguish established facts, source-reported claims, analysis, and uncertainty.
 9. Never invent a source or URL.
@@ -664,6 +679,31 @@ def render_source_panel(answer):
         f'<div class="sources-heading">Citations <span>{len(sources[:12])} interactive source cards</span></div><div class="sources-grid">'
         + "".join(cards)
         + '</div>',
+        unsafe_allow_html=True,
+    )
+
+
+def render_live_sources(sources):
+    """Render the exact live-search records captured during the current run."""
+    if not sources:
+        return
+
+    cards = []
+    for index, source in enumerate(sources[:12], 1):
+        title = escape(source.get("title", "Untitled"))
+        url = source.get("url", "")
+        domain = escape(source.get("domain") or urlparse(url).netloc.replace("www.", ""))
+        published = escape(str(source.get("published", "Live result")))
+        snippet = escape(re.sub(r"\s+", " ", source.get("snippet", "")).strip()[:220])
+        cards.append(
+            f'<a class="live-source-card" href="{escape(url, quote=True)}" target="_blank" rel="noopener noreferrer">'
+            f'<span class="live-source-badge">LIVE {index:02d}</span><span><strong>{title}</strong>'
+            f'<small>{domain} · {published}</small><em>{snippet}</em></span><b>↗</b></a>'
+        )
+
+    st.markdown(
+        f'<div class="live-sources-heading">Live web sources <span>Captured directly from Tavily · {len(sources[:12])} results</span></div>'
+        f'<div class="live-source-grid">{"".join(cards)}</div>',
         unsafe_allow_html=True,
     )
 
@@ -846,6 +886,7 @@ with nav_action:
     if st.button("＋ New Session", use_container_width=True):
         st.session_state.messages = []
         st.session_state.research_history = []
+        st.session_state.live_sources = []
         st.rerun()
 
 # =========================================================
@@ -909,6 +950,9 @@ with research_tab:
             with st.chat_message("assistant"):
                 st.markdown(message["content"])
                 render_source_panel(message["content"])
+                history_turn = message_index // 2
+                if history_turn < len(st.session_state.research_history):
+                    render_live_sources(st.session_state.research_history[history_turn].get("live_sources", []))
                 render_export_panel(message["content"], last_user_request, key_prefix=f"history_{message_index}")
 
     # =========================================================
@@ -919,6 +963,7 @@ with research_tab:
     )
 
     if user_request:
+        st.session_state.live_sources = []
         st.session_state.messages.append(
             {"role": "user", "content": user_request}
         )
@@ -953,6 +998,7 @@ with research_tab:
             activity.markdown('<div class="activity-wrap"><span class="activity-dot" style="background:#7ff0bd;box-shadow:0 0 0 5px rgba(127,240,189,.08),0 0 18px rgba(127,240,189,.55);"></span><div><div class="activity-text">Research complete</div><div class="activity-sub">Sources reviewed and response prepared</div></div></div>', unsafe_allow_html=True)
             st.markdown(answer)
             render_source_panel(answer)
+            render_live_sources(st.session_state.live_sources)
             render_export_panel(answer, user_request)
 
             elapsed = (datetime.now() - started).total_seconds()
@@ -967,6 +1013,7 @@ with research_tab:
             {
                 "user": user_request,
                 "assistant": answer,
+                "live_sources": list(st.session_state.live_sources),
             }
         )
 
