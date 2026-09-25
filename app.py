@@ -278,12 +278,12 @@ def build_crew(topic: str, depth: str, report_style: str):
     }
 
     # CrewAI's Gemini integration is configured directly through its LLM class.
-   llm = LLM(
+    llm = LLM(
     model=f"gemini/{GEMINI_MODEL}",
     api_key=GEMINI_API_KEY,
     temperature=0.2,
     use_native=False,
-)
+   )
     researcher = Agent(
         role="Senior Web Research Analyst",
         goal=(
