@@ -461,10 +461,25 @@ Use this previous response as conversation context. If the user refers to "it", 
     return "\n\n".join(parts)
 
 
+def is_greeting(text):
+    """Return True for a standalone greeting that should not start research."""
+    normalized = re.sub(r"[^a-z\s]", "", text.lower()).strip()
+    return normalized in {
+        "hi", "hello", "hey", "hiya", "howdy", "greetings",
+        "good morning", "good afternoon", "good evening", "how are you",
+    }
+
+
 # =========================================================
 # CrewAI single-agent system
 # =========================================================
 def run_research(user_request: str, depth: str, report_style: str):
+    if is_greeting(user_request):
+        return (
+            "Hello! I’m Nexus Research AI. What would you like to investigate today? "
+            "You can ask me to research a topic, compare sources, or continue an earlier thread."
+        )
+
     depth_rules = {
         "Quick": "Use a focused search strategy and prioritize authoritative sources.",
         "Standard": "Use several targeted searches and cross-check important claims.",
@@ -1012,9 +1027,11 @@ with research_tab:
         else:
             with st.chat_message("assistant"):
                 st.markdown(message["content"])
-                render_source_panel(message["content"])
+                if not is_greeting(last_user_request):
+                    render_source_panel(message["content"])
                 history_turn = message_index // 2
-                render_export_panel(message["content"], last_user_request, key_prefix=f"history_{message_index}")
+                if not is_greeting(last_user_request):
+                    render_export_panel(message["content"], last_user_request, key_prefix=f"history_{message_index}")
 
     # =========================================================
 
@@ -1038,35 +1055,42 @@ if user_request:
 
     started = datetime.now()
 
-    with st.chat_message("assistant"):
-        activity = st.empty()
-        activity.markdown('''
-        <div class="research-activity">
-            <div class="activity-step done"><span class="activity-icon">✓</span><div><strong>Understanding your request</strong><small>Connecting the question with your session context</small></div></div>
-            <div class="activity-step active"><span class="activity-spinner"></span><div><strong>Searching the web</strong><small>Finding fresh sources and checking relevant evidence</small></div></div>
-            <div class="activity-step"><span class="activity-icon muted-icon">○</span><div><strong>Preparing the answer</strong><small>Organizing findings and source links</small></div></div>
-        </div>
-        <style>
-        .research-activity{margin:.9rem 0 1.1rem;padding:1rem 1.1rem;border:1px solid rgba(148,163,184,.16);border-radius:18px;background:rgba(10,25,42,.72);backdrop-filter:blur(22px);box-shadow:0 16px 45px rgba(0,0,0,.18)}
-        .activity-step{display:flex;align-items:center;gap:.8rem;padding:.55rem .15rem;color:#71859b;transition:.2s}.activity-step+.activity-step{border-top:1px solid rgba(255,255,255,.045)}
-        .activity-step strong{display:block;color:#7d91a7;font-size:.82rem;font-weight:600}.activity-step small{display:block;color:#61758b;font-size:.7rem;margin-top:.15rem}.activity-step.active strong{color:#e7f5ff}.activity-step.active small{color:#8ea7bd}.activity-icon{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:rgba(127,240,189,.1);color:#7ff0bd;font-size:.72rem}.muted-icon{background:rgba(255,255,255,.04);color:#53677c}.activity-spinner{width:22px;height:22px;border-radius:50%;border:2px solid rgba(127,227,255,.18);border-top-color:#7fe3ff;box-shadow:0 0 14px rgba(127,227,255,.22);animation:spin .85s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
-        </style>
-        ''', unsafe_allow_html=True)
-        try:
-            answer = run_research(user_request=user_request, depth=depth, report_style=report_style)
-        except Exception as exc:
-            activity.markdown('<div class="activity-wrap"><span class="activity-dot" style="background:#ff7f9a;box-shadow:0 0 0 5px rgba(255,127,154,.08),0 0 18px rgba(255,127,154,.65);"></span><div><div class="activity-text">Research stopped</div><div class="activity-sub">Something went wrong while processing the request</div></div></div>', unsafe_allow_html=True)
-            st.error(f"Research failed: {exc}")
-            st.stop()
-        activity.markdown('<div class="activity-wrap"><span class="activity-dot" style="background:#7ff0bd;box-shadow:0 0 0 5px rgba(127,240,189,.08),0 0 18px rgba(127,240,189,.55);"></span><div><div class="activity-text">Research complete</div><div class="activity-sub">Sources reviewed and response prepared</div></div></div>', unsafe_allow_html=True)
-        st.markdown(answer)
-        render_source_panel(answer)
-        render_export_panel(answer, user_request)
+    if is_greeting(user_request):
+        answer = run_research(user_request=user_request, depth=depth, report_style=report_style)
+        with st.chat_message("assistant"):
+            st.markdown(answer)
+    else:
+        with st.chat_message("assistant"):
+            activity = st.empty()
+            activity.markdown('''
+            <div class="research-activity">
+                <div class="activity-step done"><span class="activity-icon">✓</span><div><strong>Understanding your request</strong><small>Connecting the question with your session context</small></div></div>
+                <div class="activity-step active"><span class="activity-spinner"></span><div><strong>Searching the web</strong><small>Finding fresh sources and checking relevant evidence</small></div></div>
+                <div class="activity-step"><span class="activity-icon muted-icon">○</span><div><strong>Preparing the answer</strong><small>Organizing findings and source links</small></div></div>
+            </div>
+            <style>
+            .research-activity{margin:.9rem 0 1.1rem;padding:1rem 1.1rem;border:1px solid rgba(148,163,184,.16);border-radius:18px;background:rgba(10,25,42,.72);backdrop-filter:blur(22px);box-shadow:0 16px 45px rgba(0,0,0,.18)}
+            .activity-step{display:flex;align-items:center;gap:.8rem;padding:.55rem .15rem;color:#71859b;transition:.2s}.activity-step+.activity-step{border-top:1px solid rgba(255,255,255,.045)}
+            .activity-step strong{display:block;color:#7d91a7;font-size:.82rem;font-weight:600}.activity-step small{display:block;color:#61758b;font-size:.7rem;margin-top:.15rem}.activity-step.active strong{color:#e7f5ff}.activity-step.active small{color:#8ea7bd}.activity-icon{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:rgba(127,240,189,.1);color:#7ff0bd;font-size:.72rem}.muted-icon{background:rgba(255,255,255,.04);color:#53677c}.activity-spinner{width:22px;height:22px;border-radius:50%;border:2px solid rgba(127,227,255,.18);border-top-color:#7fe3ff;box-shadow:0 0 14px rgba(127,227,255,.22);animation:spin .85s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+            </style>
+            ''', unsafe_allow_html=True)
+            try:
+                answer = run_research(user_request=user_request, depth=depth, report_style=report_style)
+            except Exception as exc:
+                activity.markdown('<div class="activity-wrap"><span class="activity-dot" style="background:#ff7f9a;box-shadow:0 0 0 5px rgba(255,127,154,.08),0 0 18px rgba(255,127,154,.65);"></span><div><div class="activity-text">Research stopped</div><div class="activity-sub">Something went wrong while processing the request</div></div></div>', unsafe_allow_html=True)
+                st.error(f"Research failed: {exc}")
+                st.stop()
+            activity.markdown('<div class="activity-wrap"><span class="activity-dot" style="background:#7ff0bd;box-shadow:0 0 0 5px rgba(127,240,189,.08),0 0 18px rgba(127,240,189,.55);"></span><div><div class="activity-text">Research complete</div><div class="activity-sub">Sources reviewed and response prepared</div></div></div>', unsafe_allow_html=True)
+            st.markdown(answer)
+            if not is_greeting(user_request):
+                render_source_panel(answer)
+                render_export_panel(answer, user_request)
 
-        elapsed = (datetime.now() - started).total_seconds()
-        st.caption(f"Research completed in {elapsed:.1f}s")
+            elapsed = (datetime.now() - started).total_seconds()
+            st.caption(f"Research completed in {elapsed:.1f}s")
 
-    # Store both sides of the turn for future context.
+        # Store both sides of the turn for future context.
+
     st.session_state.messages.append(
         {"role": "assistant", "content": answer}
     )
