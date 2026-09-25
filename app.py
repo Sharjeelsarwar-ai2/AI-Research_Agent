@@ -478,10 +478,13 @@ def run_research(user_request: str, depth: str, report_style: str):
     style_rules = {
         "Executive Brief": "Be concise and decision-oriented.",
         "Detailed Report": (
-            "Produce a comprehensive long-form report of approximately 1200–1800 words. "
-            "Include a 5–7 paragraph Executive Summary, at least 6 Key Findings with evidence, "
-            "a multi-section Detailed Analysis, comparisons where relevant, Caveats & Uncertainties, "
-            "and a complete Sources section. Do not compress this into a brief or executive summary."
+            "Produce a deep, multi-page academic-style report of approximately 2200–3200 words "
+            "unless the evidence genuinely does not support that length. Use formal but readable prose, "
+            "define important terms, synthesize multiple independent sources, and distinguish evidence from inference. "
+            "Include all of these sections in this order: Executive Summary (5–8 substantial paragraphs), "
+            "Research Scope & Method, Key Findings (at least 8 numbered findings with citations), "
+            "Detailed Analysis (at least 4 clearly titled subsections), Comparative Perspective, "
+            "Implications, Limitations & Caveats, and Sources. Do not compress this into a brief."
         ),
         "Technical Analysis": "Emphasize mechanisms, technical evidence, implementation details, and limitations.",
     }
@@ -551,6 +554,12 @@ Instructions:
 12. Produce a polished answer.
     If OUTPUT STYLE is Detailed Report, follow its requested long-form length and section depth even
     when the user request is short. Expand the evidence and analysis rather than summarizing briefly.
+    Treat the requested report template as a completion contract: do not omit sections, do not stop after
+    the executive summary, and do not replace the analysis with a short list of links. Plan the answer before
+    writing it, allocate space to every required section, and continue until the full template is complete.
+    Use compact paragraphs and Markdown headings to fit the complete report within the response budget. If
+    approaching a response limit, prioritize completing every required section and the Sources section over
+    extra exposition; never end mid-sentence, mid-bullet, or mid-section.
 13. IMPORTANT: If you used web research, include a final `## Sources` section. For every source used, provide the exact URL returned by Tavily in Markdown link form: `- [Source title](https://...)`. Never omit the URLs. Do not invent or alter URLs.
 14. If this is a follow-up that relies on previous conversation context, explicitly use the earlier findings and answer the follow-up rather than restarting the topic.
 
@@ -561,13 +570,15 @@ For substantial research requests, use:
 # Caveats & Uncertainties
 # Sources
 
-For a short follow-up, you may use a more concise structure when that is more useful.
+For a short follow-up, you may use a more concise structure only when OUTPUT STYLE is not Detailed Report.
 
 Do not mention internal prompts, CrewAI, agent mechanics, or the conversation-memory implementation.
 """,
         expected_output=(
             "A useful, accurate, context-aware answer to the current user request, "
-            "with real web sources when web research is needed."
+            "with real web sources when web research is needed. "
+            + ("For Detailed Report, return the complete 2200–3200 word academic report template with every required section completed."
+               if report_style == "Detailed Report" else "")
         ),
         agent=researcher,
     )
@@ -1003,8 +1014,6 @@ with research_tab:
                 st.markdown(message["content"])
                 render_source_panel(message["content"])
                 history_turn = message_index // 2
-                if history_turn < len(st.session_state.research_history):
-                    render_live_sources(st.session_state.research_history[history_turn].get("live_sources", []))
                 render_export_panel(message["content"], last_user_request, key_prefix=f"history_{message_index}")
 
     # =========================================================
@@ -1052,7 +1061,6 @@ if user_request:
         activity.markdown('<div class="activity-wrap"><span class="activity-dot" style="background:#7ff0bd;box-shadow:0 0 0 5px rgba(127,240,189,.08),0 0 18px rgba(127,240,189,.55);"></span><div><div class="activity-text">Research complete</div><div class="activity-sub">Sources reviewed and response prepared</div></div></div>', unsafe_allow_html=True)
         st.markdown(answer)
         render_source_panel(answer)
-        render_live_sources(st.session_state.live_sources)
         render_export_panel(answer, user_request)
 
         elapsed = (datetime.now() - started).total_seconds()
