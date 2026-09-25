@@ -925,9 +925,9 @@ with analytics_tab:
     render_analytics_panel()
 
 with research_tab:
-    # =========================================================
-    # Existing conversation
-    # =========================================================
+# =========================================================
+# Existing conversation
+# =========================================================
     if not st.session_state.messages:
         st.markdown(
             """
@@ -958,12 +958,19 @@ with research_tab:
                     render_live_sources(st.session_state.research_history[history_turn].get("live_sources", []))
                 render_export_panel(message["content"], last_user_request, key_prefix=f"history_{message_index}")
 
-# Keep st.chat_input at the script top level so Streamlit renders it as a bottom dock.
-user_request = st.chat_input("Ask a research question or continue the conversation…")
+    # =========================================================
+
+# Chat input
+# =========================================================
+user_request = st.chat_input(
+    "Ask a research question or continue the conversation…"
+)
 
 if user_request:
     st.session_state.live_sources = []
-    st.session_state.messages.append({"role": "user", "content": user_request})
+    st.session_state.messages.append(
+        {"role": "user", "content": user_request}
+    )
 
     st.markdown(
         f'<div class="user-message"><div class="user-message-label">You</div>{escape(user_request)}</div>',
@@ -971,6 +978,7 @@ if user_request:
     )
 
     started = datetime.now()
+
     with st.chat_message("assistant"):
         activity = st.empty()
         activity.markdown('''
@@ -996,10 +1004,15 @@ if user_request:
         render_source_panel(answer)
         render_live_sources(st.session_state.live_sources)
         render_export_panel(answer, user_request)
+
         elapsed = (datetime.now() - started).total_seconds()
         st.caption(f"Research completed in {elapsed:.1f}s")
 
-    st.session_state.messages.append({"role": "assistant", "content": answer})
+    # Store both sides of the turn for future context.
+    st.session_state.messages.append(
+        {"role": "assistant", "content": answer}
+    )
+
     st.session_state.research_history.append(
         {
             "user": user_request,
@@ -1007,4 +1020,6 @@ if user_request:
             "live_sources": list(st.session_state.live_sources),
         }
     )
+
+    # Keep the UI state synchronized immediately.
     st.rerun()
