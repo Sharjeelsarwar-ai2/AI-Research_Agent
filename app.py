@@ -50,12 +50,16 @@ st.markdown(
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
 
 :root {
-    --bg: #07111f;
-    --panel: rgba(14, 29, 48, .70);
-    --panel2: rgba(10, 24, 41, .66);
-    --border: rgba(148, 163, 184, .16);
-    --text: #eef6ff;
-    --muted: #9fb0c5;
+    --bg: #07101d;
+    --panel: rgba(16, 29, 49, .72);
+    --panel2: rgba(12, 24, 42, .68);
+    --border: rgba(166, 190, 214, .16);
+    --border-strong: rgba(141, 220, 255, .26);
+    --text: #f2f7fb;
+    --muted: #96a9bc;
+    --cyan: #8de6ff;
+    --violet: #b6a4ff;
+    --mint: #91f1c5;
 }
 
 html, body, [class*="css"] {
@@ -64,10 +68,10 @@ html, body, [class*="css"] {
 
 .stApp {
     background:
-        radial-gradient(circle at 10% 7%, rgba(86,216,255,.15), transparent 28%),
-        radial-gradient(circle at 90% 10%, rgba(155,123,255,.17), transparent 30%),
-        radial-gradient(circle at 50% 100%, rgba(94,230,176,.07), transparent 26%),
-        #07111f;
+        radial-gradient(900px 520px at 8% -8%, rgba(91, 215, 255, .16), transparent 62%),
+        radial-gradient(760px 520px at 96% 2%, rgba(155, 123, 255, .18), transparent 62%),
+        radial-gradient(700px 480px at 50% 112%, rgba(74, 211, 160, .08), transparent 68%),
+        #07101d;
     color: var(--text);
 }
 
@@ -84,30 +88,35 @@ html, body, [class*="css"] {
 }
 
 .block-container {
-    max-width: 1280px;
-    padding-top: 7.4rem;
-    padding-bottom: 8rem;
+    max-width: 1180px;
+    padding-top: 7.9rem;
+    padding-bottom: 9.5rem;
 }
 
 header[data-testid="stHeader"], [data-testid="stToolbar"], [data-testid="stDecoration"], [data-testid="stStatusWidget"], footer { display:none !important; }
 [data-testid="stSidebar"], [data-testid="collapsedControl"] { display:none !important; }
 
-/* Floating navigation dock */
+/* Floating glass navigation */
 div[data-testid="stHorizontalBlock"]:has(.nav-brand) {
     position:fixed !important;
     z-index:999999 !important;
     top:1rem !important;
     left:50% !important;
     transform:translateX(-50%) !important;
-    width:min(1160px,calc(100vw - 2rem)) !important;
-    min-height:72px !important;
+    width:min(1180px,calc(100vw - 2rem)) !important;
+    min-height:70px !important;
     padding:.55rem .7rem !important;
-    border:1px solid rgba(148,163,184,.18) !important;
-    border-radius:28px !important;
-    background:linear-gradient(135deg,rgba(9,24,41,.78),rgba(18,24,50,.72)) !important;
-    backdrop-filter:blur(28px) saturate(160%) !important;
-    -webkit-backdrop-filter:blur(28px) saturate(160%) !important;
-    box-shadow:0 22px 70px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.08) !important;
+    border:1px solid rgba(182, 216, 239, .20) !important;
+    border-radius:24px !important;
+    background:linear-gradient(120deg,rgba(11,28,47,.82),rgba(22,25,53,.76)) !important;
+    backdrop-filter:blur(30px) saturate(175%) !important;
+    -webkit-backdrop-filter:blur(30px) saturate(175%) !important;
+    box-shadow:0 24px 70px rgba(0,0,0,.40),inset 0 1px 0 rgba(255,255,255,.10) !important;
+}
+
+div[data-testid="stHorizontalBlock"]:has(.nav-brand)::after {
+    content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+    background:linear-gradient(100deg,rgba(141,230,255,.08),transparent 36%,rgba(182,164,255,.08));
 }
 
 div[data-testid="stHorizontalBlock"]:has(.nav-brand) > div {
@@ -160,9 +169,9 @@ div[data-testid="stHorizontalBlock"]:has(.nav-brand) div.stButton > button {
     padding: 2.2rem 2.4rem;
     border: 1px solid var(--border);
     border-radius: 28px;
-    background: linear-gradient(135deg, rgba(19,39,63,.76), rgba(10,23,40,.55));
-    backdrop-filter: blur(22px);
-    box-shadow: 0 25px 80px rgba(0,0,0,.25);
+    background:linear-gradient(135deg,rgba(18,39,64,.72),rgba(10,22,39,.58));
+    backdrop-filter:blur(24px) saturate(135%);
+    box-shadow:0 26px 85px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.07);
     margin-bottom: 1.2rem;
 }
 
@@ -187,7 +196,7 @@ div[data-testid="stHorizontalBlock"]:has(.nav-brand) div.stButton > button {
 }
 
 .gradient-text {
-    background: linear-gradient(90deg, #fff 10%, #7fe3ff 48%, #ad95ff 92%);
+    background:linear-gradient(100deg,#ffffff 8%,#8de6ff 46%,#b6a4ff 92%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
 }
@@ -281,29 +290,24 @@ div.stButton > button:hover {
     transform: translateY(-1px);
 }
 
-/* Floating glass chat dock */
+/* Floating Claude-style chat composer */
 [data-testid="stBottomBlockContainer"] {
-    position:fixed !important;
-    left:0 !important;
-    right:0 !important;
-    bottom:18px !important;
-    z-index:999998 !important;
-    background:transparent !important;
-    border:0 !important;
-    box-shadow:none !important;
-    padding:0 !important;
+    position:fixed !important; left:0 !important; right:0 !important; bottom:18px !important;
+    z-index:999998 !important; background:transparent !important; border:0 !important;
+    box-shadow:none !important; padding:0 !important;
 }
 
 [data-testid="stBottomBlockContainer"] > div {
-    width:min(1120px,calc(100vw - 2rem)) !important;
-    margin:0 auto !important;
-    padding:.55rem !important;
-    border:1px solid rgba(148,163,184,.18) !important;
-    border-radius:25px !important;
-    background:linear-gradient(135deg,rgba(15,30,49,.84),rgba(23,27,52,.78)) !important;
-    backdrop-filter:blur(26px) saturate(160%) !important;
-    -webkit-backdrop-filter:blur(26px) saturate(160%) !important;
-    box-shadow:0 20px 60px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.07) !important;
+    width:min(940px,calc(100vw - 2rem)) !important; margin:0 auto !important; padding:.48rem !important;
+    border:1px solid rgba(177,210,236,.22) !important; border-radius:28px !important;
+    background:linear-gradient(135deg,rgba(16,32,52,.90),rgba(25,28,57,.84)) !important;
+    backdrop-filter:blur(30px) saturate(175%) !important; -webkit-backdrop-filter:blur(30px) saturate(175%) !important;
+    box-shadow:0 26px 76px rgba(0,0,0,.48),inset 0 1px 0 rgba(255,255,255,.10) !important;
+}
+
+[data-testid="stBottomBlockContainer"] > div::before {
+    content:""; display:block; height:2px; width:72px; margin:-.48rem auto .35rem; border-radius:99px;
+    background:linear-gradient(90deg,transparent,var(--cyan),transparent); opacity:.72;
 }
 
 [data-testid="stChatInput"] {
@@ -641,10 +645,10 @@ for message in st.session_state.messages:
     role = message["role"]
 
     if role == "user":
-        with st.chat_message("user"):
+        with st.chat_message("user", avatar=" "):
             st.markdown(message["content"])
     else:
-        with st.chat_message("assistant"):
+        with st.chat_message("assistant", avatar="✦"):
             st.markdown(message["content"])
 
 # =========================================================
@@ -659,12 +663,12 @@ if user_request:
         {"role": "user", "content": user_request}
     )
 
-    with st.chat_message("user"):
+    with st.chat_message("user", avatar=" "):
         st.markdown(user_request)
 
     started = datetime.now()
 
-    with st.chat_message("assistant"):
+    with st.chat_message("assistant", avatar="✦"):
         activity = st.empty()
         activity.markdown('''
         <div class="research-activity">
@@ -705,4 +709,3 @@ if user_request:
 
     # Keep the UI state synchronized immediately.
     st.rerun()
-
