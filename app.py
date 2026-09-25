@@ -657,7 +657,7 @@ def build_pdf_report(answer, query):
     return buffer.getvalue()
 
 
-def render_export_panel(answer, query):
+def render_export_panel(answer, query, key_prefix="latest"):
     """Render native Streamlit downloads for the current research result."""
     plain_text = re.sub(r"[`*_>#]", "", answer)
     plain_text = re.sub(r"\n{3,}", "\n\n", plain_text).strip()
@@ -682,14 +682,14 @@ def render_export_panel(answer, query):
     export_cols = st.columns(4)
     safe_name = re.sub(r"[^a-zA-Z0-9]+", "-", query.lower()).strip("-")[:48] or "nexus-research"
     with export_cols[0]:
-        st.download_button("↓ Markdown", data=answer, file_name=f"{safe_name}.md", mime="text/markdown", use_container_width=True)
+        st.download_button("↓ Markdown", data=answer, file_name=f"{safe_name}.md", mime="text/markdown", use_container_width=True, key=f"{key_prefix}_markdown")
     with export_cols[1]:
-        st.download_button("↓ Text", data=plain_text, file_name=f"{safe_name}.txt", mime="text/plain", use_container_width=True)
+        st.download_button("↓ Text", data=plain_text, file_name=f"{safe_name}.txt", mime="text/plain", use_container_width=True, key=f"{key_prefix}_text")
     with export_cols[2]:
-        st.download_button("↓ HTML", data=html_report, file_name=f"{safe_name}.html", mime="text/html", use_container_width=True)
+        st.download_button("↓ HTML", data=html_report, file_name=f"{safe_name}.html", mime="text/html", use_container_width=True, key=f"{key_prefix}_html")
     with export_cols[3]:
         if pdf_report:
-            st.download_button("↓ PDF", data=pdf_report, file_name=f"{safe_name}.pdf", mime="application/pdf", use_container_width=True)
+            st.download_button("↓ PDF", data=pdf_report, file_name=f"{safe_name}.pdf", mime="application/pdf", use_container_width=True, key=f"{key_prefix}_pdf")
         else:
             st.caption(pdf_error)
 
@@ -755,10 +755,12 @@ if not st.session_state.messages:
         unsafe_allow_html=True,
     )
 
-for message in st.session_state.messages:
+last_user_request = "Research report"
+for message_index, message in enumerate(st.session_state.messages):
     role = message["role"]
 
     if role == "user":
+        last_user_request = message["content"]
         st.markdown(
             f'<div class="user-message"><div class="user-message-label">You</div>{escape(message["content"])}</div>',
             unsafe_allow_html=True,
@@ -766,6 +768,8 @@ for message in st.session_state.messages:
     else:
         with st.chat_message("assistant"):
             st.markdown(message["content"])
+            render_source_panel(message["content"])
+            render_export_panel(message["content"], last_user_request, key_prefix=f"history_{message_index}")
 
 # =========================================================
 # Chat input
