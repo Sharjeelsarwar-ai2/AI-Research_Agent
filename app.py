@@ -1,6 +1,7 @@
 import re
 from datetime import datetime
 from html import escape
+from urllib.parse import urlparse
 
 import streamlit as st
 from crewai import Agent, Crew, Process, Task, LLM
@@ -344,7 +345,7 @@ div.stButton > button:hover {
     border-radius: 16px;
 }
 
-.sources-heading{font-family:"Space Grotesk",sans-serif;font-size:1rem;font-weight:700;margin:1.2rem 0 .65rem;color:#eaf6ff}.sources-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.65rem}.source-card{display:flex;align-items:flex-start;gap:.65rem;padding:.75rem .85rem;border:1px solid rgba(148,163,184,.13);border-radius:14px;background:rgba(10,25,42,.55);text-decoration:none!important;color:#dcecff!important;backdrop-filter:blur(14px);transition:.18s}.source-card:hover{border-color:rgba(127,227,255,.32);transform:translateY(-1px);background:rgba(17,36,58,.68)}.source-card strong{display:block;font-size:.76rem;font-weight:600;line-height:1.35}.source-card small{display:block;margin-top:.2rem;color:#70869d;font-size:.63rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:390px}.source-link-icon{width:25px;height:25px;display:grid;place-items:center;border-radius:8px;background:rgba(127,227,255,.08);color:#7fe3ff;flex:0 0 auto}@media(max-width:700px){.sources-grid{grid-template-columns:1fr}}
+.sources-heading{font-family:"Space Grotesk",sans-serif;font-size:1rem;font-weight:700;margin:1.2rem 0 .65rem;color:#eaf6ff}.sources-heading span{color:#7891a8;font-size:.72rem;font-family:"DM Sans",sans-serif;font-weight:500;margin-left:.4rem}.sources-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.65rem}.source-card{display:flex;align-items:flex-start;gap:.65rem;padding:.82rem .9rem;border:1px solid rgba(148,163,184,.13);border-radius:16px;background:linear-gradient(135deg,rgba(13,31,51,.72),rgba(18,28,53,.58));text-decoration:none!important;color:#dcecff!important;backdrop-filter:blur(14px);transition:.2s;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}.source-card:hover{border-color:rgba(127,227,255,.42);transform:translateY(-2px);background:linear-gradient(135deg,rgba(19,46,70,.82),rgba(31,35,70,.68));box-shadow:0 12px 30px rgba(0,0,0,.18),inset 0 1px 0 rgba(255,255,255,.07)}.source-card strong{display:block;font-size:.78rem;font-weight:650;line-height:1.4}.source-card small{display:block;margin-top:.25rem;color:#7891a8;font-size:.64rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:390px}.source-card .source-number{color:#8de6ff;font-size:.65rem;font-weight:700;letter-spacing:.06em}.source-link-icon{width:27px;height:27px;display:grid;place-items:center;border-radius:9px;background:rgba(127,227,255,.09);color:#7fe3ff;flex:0 0 auto}.export-panel{margin-top:1.1rem;padding:.85rem 1rem;border:1px solid rgba(166,190,214,.13);border-radius:17px;background:rgba(9,23,39,.42)}.export-label{color:#8fa6ba;font-size:.7rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;margin-bottom:.55rem}@media(max-width:700px){.sources-grid{grid-template-columns:1fr}}
 
 .footer {
     text-align: center;
@@ -568,20 +569,48 @@ def render_source_panel(answer):
         return
 
     cards = []
-    for title, url in sources[:12]:
+    for index, (title, url) in enumerate(sources[:12], 1):
         safe_title = escape(title)
         safe_url = escape(url, quote=True)
+        domain = escape(urlparse(url).netloc.replace("www.", ""))
         cards.append(
-            f'<a class="source-card" href="{safe_url}" target="_blank" rel="noopener noreferrer">'
-            f'<span class="source-link-icon">↗</span><span><strong>{safe_title}</strong><small>{safe_url}</small></span></a>'
+            f'<a class="source-card" href="{safe_url}" target="_blank" rel="noopener noreferrer" '
+            f'title="Open citation {index}: {safe_title}">'
+            f'<span class="source-link-icon">↗</span><span><span class="source-number">CITATION {index} · {domain}</span>'
+            f'<strong>{safe_title}</strong><small>{safe_url}</small></span></a>'
         )
 
     st.markdown(
-        '<div class="sources-heading">Sources</div><div class="sources-grid">'
+        f'<div class="sources-heading">Citations <span>{len(sources[:12])} interactive source cards</span></div><div class="sources-grid">'
         + "".join(cards)
         + '</div>',
         unsafe_allow_html=True,
     )
+
+
+def render_export_panel(answer, query):
+    """Render native Streamlit downloads for the current research result."""
+    plain_text = re.sub(r"[`*_>#]", "", answer)
+    plain_text = re.sub(r"\n{3,}", "\n\n", plain_text).strip()
+    html_report = (
+        "<!doctype html><html><head><meta charset='utf-8'>"
+        "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+        f"<title>{escape(query)} — Nexus Research</title>"
+        "<style>body{font-family:Inter,Arial,sans-serif;max-width:860px;margin:40px auto;padding:0 22px;color:#172335;line-height:1.65}h1,h2,h3{line-height:1.2}a{color:#146c94}pre{white-space:pre-wrap}</style>"
+        "</head><body>"
+        f"<h1>{escape(query)}</h1><p><strong>Nexus Research</strong> · Exported {datetime.now().strftime('%Y-%m-%d %H:%M')}</p>"
+        f"<pre>{escape(answer)}</pre></body></html>"
+    )
+
+    st.markdown('<div class="export-panel"><div class="export-label">Export this research</div></div>', unsafe_allow_html=True)
+    export_cols = st.columns(3)
+    safe_name = re.sub(r"[^a-zA-Z0-9]+", "-", query.lower()).strip("-")[:48] or "nexus-research"
+    with export_cols[0]:
+        st.download_button("↓ Markdown", data=answer, file_name=f"{safe_name}.md", mime="text/markdown", use_container_width=True)
+    with export_cols[1]:
+        st.download_button("↓ Text", data=plain_text, file_name=f"{safe_name}.txt", mime="text/plain", use_container_width=True)
+    with export_cols[2]:
+        st.download_button("↓ HTML", data=html_report, file_name=f"{safe_name}.html", mime="text/html", use_container_width=True)
 
 
 # =========================================================
@@ -654,7 +683,7 @@ for message in st.session_state.messages:
             unsafe_allow_html=True,
         )
     else:
-        with st.chat_message("assistant", avatar="✦"):
+        with st.chat_message("assistant"):
             st.markdown(message["content"])
 
 # =========================================================
@@ -676,7 +705,7 @@ if user_request:
 
     started = datetime.now()
 
-    with st.chat_message("assistant", avatar="✦"):
+    with st.chat_message("assistant"):
         activity = st.empty()
         activity.markdown('''
         <div class="research-activity">
@@ -699,6 +728,7 @@ if user_request:
         activity.markdown('<div class="activity-wrap"><span class="activity-dot" style="background:#7ff0bd;box-shadow:0 0 0 5px rgba(127,240,189,.08),0 0 18px rgba(127,240,189,.55);"></span><div><div class="activity-text">Research complete</div><div class="activity-sub">Sources reviewed and response prepared</div></div></div>', unsafe_allow_html=True)
         st.markdown(answer)
         render_source_panel(answer)
+        render_export_panel(answer, user_request)
 
         elapsed = (datetime.now() - started).total_seconds()
         st.caption(f"Research completed in {elapsed:.1f}s")
