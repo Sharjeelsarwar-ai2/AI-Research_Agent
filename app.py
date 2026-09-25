@@ -85,23 +85,76 @@ html, body, [class*="css"] {
 
 .block-container {
     max-width: 1280px;
-    padding-top: 6.5rem;
-    padding-bottom: 4rem;
+    padding-top: 7.4rem;
+    padding-bottom: 8rem;
 }
 
-header[data-testid="stHeader"], [data-testid="stToolbar"], [data-testid="stDecoration"], [data-testid="stStatusWidget"] { display:none !important; }
+header[data-testid="stHeader"], [data-testid="stToolbar"], [data-testid="stDecoration"], [data-testid="stStatusWidget"], footer { display:none !important; }
 [data-testid="stSidebar"], [data-testid="collapsedControl"] { display:none !important; }
 
-.floating-nav { position:fixed; z-index:999999; top:1rem; left:50%; transform:translateX(-50%); width:min(1120px,calc(100vw - 2rem)); padding:.65rem .75rem; border:1px solid rgba(148,163,184,.18); border-radius:22px; background:rgba(8,20,35,.72); backdrop-filter:blur(24px) saturate(150%); -webkit-backdrop-filter:blur(24px) saturate(150%); box-shadow:0 18px 55px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.05); }
+/* Floating navigation dock */
+div[data-testid="stHorizontalBlock"]:has(.nav-brand) {
+    position:fixed !important;
+    z-index:999999 !important;
+    top:1rem !important;
+    left:50% !important;
+    transform:translateX(-50%) !important;
+    width:min(1160px,calc(100vw - 2rem)) !important;
+    min-height:72px !important;
+    padding:.55rem .7rem !important;
+    border:1px solid rgba(148,163,184,.18) !important;
+    border-radius:28px !important;
+    background:linear-gradient(135deg,rgba(9,24,41,.78),rgba(18,24,50,.72)) !important;
+    backdrop-filter:blur(28px) saturate(160%) !important;
+    -webkit-backdrop-filter:blur(28px) saturate(160%) !important;
+    box-shadow:0 22px 70px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.08) !important;
+}
+
+div[data-testid="stHorizontalBlock"]:has(.nav-brand) > div {
+    padding:0 .25rem !important;
+}
+
+div[data-testid="stHorizontalBlock"]:has(.nav-brand) .stSelectbox > div > div {
+    min-height:48px !important;
+    border-radius:16px !important;
+    background:rgba(255,255,255,.055) !important;
+    border:1px solid rgba(255,255,255,.08) !important;
+}
+
+div[data-testid="stHorizontalBlock"]:has(.nav-brand) .stSelectbox label { display:none !important; }
+
+div[data-testid="stHorizontalBlock"]:has(.nav-brand) div.stButton > button {
+    min-height:48px !important;
+    border-radius:16px !important;
+    border:1px solid rgba(126,224,255,.28) !important;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 8px 24px rgba(73,105,190,.16) !important;
+}
+
 .nav-brand { display:flex;align-items:center;gap:.65rem;font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:1.02rem;white-space:nowrap; }
-.nav-orb { width:32px;height:32px;border-radius:11px;display:grid;place-items:center;background:linear-gradient(135deg,rgba(127,227,255,.25),rgba(173,149,255,.25));border:1px solid rgba(127,227,255,.25); }
+.nav-orb { width:38px;height:38px;border-radius:13px;display:grid;place-items:center;background:linear-gradient(135deg,rgba(127,227,255,.25),rgba(173,149,255,.25));border:1px solid rgba(127,227,255,.28);box-shadow:inset 0 1px 0 rgba(255,255,255,.1),0 8px 22px rgba(60,130,180,.16); }
 .nav-label { color:#8fa3ba;font-size:.67rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-bottom:.18rem; }
 .nav-meta { color:#9fb0c5;font-size:.73rem;white-space:nowrap; }
 .activity-wrap { display:flex;align-items:center;gap:.7rem;padding:.7rem .9rem;margin:.85rem 0 1rem;border:1px solid rgba(127,227,255,.16);border-radius:15px;background:rgba(8,25,42,.64);backdrop-filter:blur(18px);box-shadow:0 12px 35px rgba(0,0,0,.18); }
 .activity-dot { width:9px;height:9px;border-radius:50%;background:#7fe3ff;box-shadow:0 0 0 5px rgba(127,227,255,.08),0 0 18px rgba(127,227,255,.75);animation:pulse 1.35s ease-in-out infinite; }
 .activity-text { font-size:.82rem;color:#d9e8f7; } .activity-sub { font-size:.72rem;color:#7f94aa;margin-top:.1rem; }
 @keyframes pulse { 0%,100%{transform:scale(.85);opacity:.55;} 50%{transform:scale(1.15);opacity:1;} }
-@media(max-width:900px){[data-testid="stHorizontalBlock"]:first-of-type{top:.65rem;width:calc(100vw - 1rem);border-radius:18px}.block-container{padding-top:7.2rem}.nav-meta{display:none}}
+@media(max-width:900px){
+    div[data-testid="stHorizontalBlock"]:has(.nav-brand){
+        top:.65rem !important; width:calc(100vw - 1rem) !important; border-radius:20px !important;
+    }
+    .block-container{padding-top:8rem;padding-bottom:8.5rem}
+    .nav-meta{display:none}
+}
+@media(max-width:650px){
+    div[data-testid="stHorizontalBlock"]:has(.nav-brand){min-height:64px !important}
+    div[data-testid="stHorizontalBlock"]:has(.nav-brand) > div:nth-child(1){flex:1.3 1 0 !important}
+    div[data-testid="stHorizontalBlock"]:has(.nav-brand) > div:nth-child(2){flex:1 1 0 !important}
+    div[data-testid="stHorizontalBlock"]:has(.nav-brand) > div:nth-child(3){flex:1 1 0 !important}
+    div[data-testid="stHorizontalBlock"]:has(.nav-brand) > div:nth-child(4){display:none !important}
+    div[data-testid="stHorizontalBlock"]:has(.nav-brand) > div:nth-child(5){flex:1 1 0 !important}
+    .nav-brand span:last-child{display:none}
+    [data-testid="stBottomBlockContainer"] > div{width:calc(100vw - 1rem) !important;border-radius:21px !important}
+}
 
 .hero {
     padding: 2.2rem 2.4rem;
@@ -228,8 +281,53 @@ div.stButton > button:hover {
     transform: translateY(-1px);
 }
 
-.stChatInputContainer {
-    background: rgba(7,17,31,.8);
+/* Floating glass chat dock */
+[data-testid="stBottomBlockContainer"] {
+    position:fixed !important;
+    left:0 !important;
+    right:0 !important;
+    bottom:18px !important;
+    z-index:999998 !important;
+    background:transparent !important;
+    border:0 !important;
+    box-shadow:none !important;
+    padding:0 !important;
+}
+
+[data-testid="stBottomBlockContainer"] > div {
+    width:min(1120px,calc(100vw - 2rem)) !important;
+    margin:0 auto !important;
+    padding:.55rem !important;
+    border:1px solid rgba(148,163,184,.18) !important;
+    border-radius:25px !important;
+    background:linear-gradient(135deg,rgba(15,30,49,.84),rgba(23,27,52,.78)) !important;
+    backdrop-filter:blur(26px) saturate(160%) !important;
+    -webkit-backdrop-filter:blur(26px) saturate(160%) !important;
+    box-shadow:0 20px 60px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.07) !important;
+}
+
+[data-testid="stChatInput"] {
+    border:0 !important;
+    background:transparent !important;
+    box-shadow:none !important;
+}
+
+[data-testid="stChatInput"] > div {
+    border:0 !important;
+    background:transparent !important;
+}
+
+[data-testid="stChatInput"] textarea {
+    background:rgba(255,255,255,.045) !important;
+    border:1px solid rgba(255,255,255,.06) !important;
+    border-radius:18px !important;
+    color:#eef6ff !important;
+    min-height:48px !important;
+}
+
+[data-testid="stChatInput"] textarea:focus {
+    border-color:rgba(127,227,255,.3) !important;
+    box-shadow:0 0 0 3px rgba(127,227,255,.06) !important;
 }
 
 [data-testid="stExpander"] {
@@ -545,7 +643,3 @@ if user_request:
     # Keep the UI state synchronized immediately.
     st.rerun()
 
-st.markdown(
-    '<div class="footer">Nexus Research AI · Context-aware web research · Session memory</div>',
-    unsafe_allow_html=True,
-)
