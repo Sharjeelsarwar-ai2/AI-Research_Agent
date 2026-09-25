@@ -299,26 +299,29 @@ div.stButton > button:hover {
 /* Restored wide floating glass chat dock */
 [data-testid="stBottomBlockContainer"] {
     position:fixed !important;
-    left:0 !important;
-    right:0 !important;
+    left:50% !important;
+    right:auto !important;
+    transform:translateX(-50%) !important;
     bottom:18px !important;
     z-index:999998 !important;
-    background:transparent !important;
-    border:0 !important;
-    box-shadow:none !important;
-    padding:0 !important;
+    width:min(1120px,calc(100vw - 2rem)) !important;
+    min-height:70px !important;
+    padding:.55rem !important;
+    border:1px solid rgba(148,163,184,.28) !important;
+    border-radius:25px !important;
+    background:linear-gradient(135deg,rgba(15,30,49,.94),rgba(23,27,52,.90)) !important;
+    backdrop-filter:blur(26px) saturate(160%) !important;
+    -webkit-backdrop-filter:blur(26px) saturate(160%) !important;
+    box-shadow:0 20px 60px rgba(0,0,0,.48),inset 0 1px 0 rgba(255,255,255,.10) !important;
 }
 
 [data-testid="stBottomBlockContainer"] > div {
-    width:min(1120px,calc(100vw - 2rem)) !important;
-    margin:0 auto !important;
-    padding:.55rem !important;
-    border:1px solid rgba(148,163,184,.18) !important;
-    border-radius:25px !important;
-    background:linear-gradient(135deg,rgba(15,30,49,.84),rgba(23,27,52,.78)) !important;
-    backdrop-filter:blur(26px) saturate(160%) !important;
-    -webkit-backdrop-filter:blur(26px) saturate(160%) !important;
-    box-shadow:0 20px 60px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.07) !important;
+    width:100% !important;
+    margin:0 !important;
+    padding:0 !important;
+    background:transparent !important;
+    border:0 !important;
+    box-shadow:none !important;
 }
 
 [data-testid="stChatInput"] {
