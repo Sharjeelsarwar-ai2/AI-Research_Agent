@@ -467,7 +467,12 @@ def run_research(user_request: str, depth: str, report_style: str):
 
     style_rules = {
         "Executive Brief": "Be concise and decision-oriented.",
-        "Detailed Report": "Provide substantial context, evidence, comparisons, and caveats.",
+        "Detailed Report": (
+            "Produce a comprehensive long-form report of approximately 1200–1800 words. "
+            "Include a 5–7 paragraph Executive Summary, at least 6 Key Findings with evidence, "
+            "a multi-section Detailed Analysis, comparisons where relevant, Caveats & Uncertainties, "
+            "and a complete Sources section. Do not compress this into a brief or executive summary."
+        ),
         "Technical Analysis": "Emphasize mechanisms, technical evidence, implementation details, and limitations.",
     }
 
@@ -534,6 +539,8 @@ Instructions:
 11. If the current request is a simple follow-up that can be answered from the
     existing context, still verify time-sensitive facts when appropriate.
 12. Produce a polished answer.
+    If OUTPUT STYLE is Detailed Report, follow its requested long-form length and section depth even
+    when the user request is short. Expand the evidence and analysis rather than summarizing briefly.
 13. IMPORTANT: If you used web research, include a final `## Sources` section. For every source used, provide the exact URL returned by Tavily in Markdown link form: `- [Source title](https://...)`. Never omit the URLs. Do not invent or alter URLs.
 14. If this is a follow-up that relies on previous conversation context, explicitly use the earlier findings and answer the follow-up rather than restarting the topic.
 
@@ -562,7 +569,23 @@ Do not mention internal prompts, CrewAI, agent mechanics, or the conversation-me
         verbose=False,
     )
 
-    return str(crew.kickoff())
+    answer = str(crew.kickoff())
+
+    # Make source rendering deterministic: the UI must not depend on the model
+    # remembering to repeat URLs that were already returned by Tavily.
+    live_sources = st.session_state.get("live_sources", [])
+    if live_sources:
+        existing_urls = {url for _title, url in extract_sources(answer)}
+        citation_lines = []
+        for source in live_sources[:12]:
+            title = source.get("title", "Untitled source")
+            url = source.get("url", "")
+            if url and url not in existing_urls:
+                citation_lines.append(f"- [{title}]({url})")
+        if citation_lines:
+            answer = answer.rstrip() + "\n\n## Sources\n" + "\n".join(citation_lines)
+
+    return answer
 
 
 # =========================================================
@@ -959,66 +982,67 @@ with research_tab:
                 render_export_panel(message["content"], last_user_request, key_prefix=f"history_{message_index}")
 
     # =========================================================
-    # Chat input
-    # =========================================================
-    user_request = st.chat_input(
-        "Ask a research question or continue the conversation…"
+
+# Chat input
+# =========================================================
+user_request = st.chat_input(
+    "Ask a research question or continue the conversation…"
+)
+
+if user_request:
+    st.session_state.live_sources = []
+    st.session_state.messages.append(
+        {"role": "user", "content": user_request}
     )
 
-    if user_request:
-        st.session_state.live_sources = []
-        st.session_state.messages.append(
-            {"role": "user", "content": user_request}
-        )
+    st.markdown(
+        f'<div class="user-message"><div class="user-message-label">You</div>{escape(user_request)}</div>',
+        unsafe_allow_html=True,
+    )
 
-        st.markdown(
-            f'<div class="user-message"><div class="user-message-label">You</div>{escape(user_request)}</div>',
-            unsafe_allow_html=True,
-        )
+    started = datetime.now()
 
-        started = datetime.now()
+    with st.chat_message("assistant"):
+        activity = st.empty()
+        activity.markdown('''
+        <div class="research-activity">
+            <div class="activity-step done"><span class="activity-icon">✓</span><div><strong>Understanding your request</strong><small>Connecting the question with your session context</small></div></div>
+            <div class="activity-step active"><span class="activity-spinner"></span><div><strong>Searching the web</strong><small>Finding fresh sources and checking relevant evidence</small></div></div>
+            <div class="activity-step"><span class="activity-icon muted-icon">○</span><div><strong>Preparing the answer</strong><small>Organizing findings and source links</small></div></div>
+        </div>
+        <style>
+        .research-activity{margin:.9rem 0 1.1rem;padding:1rem 1.1rem;border:1px solid rgba(148,163,184,.16);border-radius:18px;background:rgba(10,25,42,.72);backdrop-filter:blur(22px);box-shadow:0 16px 45px rgba(0,0,0,.18)}
+        .activity-step{display:flex;align-items:center;gap:.8rem;padding:.55rem .15rem;color:#71859b;transition:.2s}.activity-step+.activity-step{border-top:1px solid rgba(255,255,255,.045)}
+        .activity-step strong{display:block;color:#7d91a7;font-size:.82rem;font-weight:600}.activity-step small{display:block;color:#61758b;font-size:.7rem;margin-top:.15rem}.activity-step.active strong{color:#e7f5ff}.activity-step.active small{color:#8ea7bd}.activity-icon{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:rgba(127,240,189,.1);color:#7ff0bd;font-size:.72rem}.muted-icon{background:rgba(255,255,255,.04);color:#53677c}.activity-spinner{width:22px;height:22px;border-radius:50%;border:2px solid rgba(127,227,255,.18);border-top-color:#7fe3ff;box-shadow:0 0 14px rgba(127,227,255,.22);animation:spin .85s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+        </style>
+        ''', unsafe_allow_html=True)
+        try:
+            answer = run_research(user_request=user_request, depth=depth, report_style=report_style)
+        except Exception as exc:
+            activity.markdown('<div class="activity-wrap"><span class="activity-dot" style="background:#ff7f9a;box-shadow:0 0 0 5px rgba(255,127,154,.08),0 0 18px rgba(255,127,154,.65);"></span><div><div class="activity-text">Research stopped</div><div class="activity-sub">Something went wrong while processing the request</div></div></div>', unsafe_allow_html=True)
+            st.error(f"Research failed: {exc}")
+            st.stop()
+        activity.markdown('<div class="activity-wrap"><span class="activity-dot" style="background:#7ff0bd;box-shadow:0 0 0 5px rgba(127,240,189,.08),0 0 18px rgba(127,240,189,.55);"></span><div><div class="activity-text">Research complete</div><div class="activity-sub">Sources reviewed and response prepared</div></div></div>', unsafe_allow_html=True)
+        st.markdown(answer)
+        render_source_panel(answer)
+        render_live_sources(st.session_state.live_sources)
+        render_export_panel(answer, user_request)
 
-        with st.chat_message("assistant"):
-            activity = st.empty()
-            activity.markdown('''
-            <div class="research-activity">
-                <div class="activity-step done"><span class="activity-icon">✓</span><div><strong>Understanding your request</strong><small>Connecting the question with your session context</small></div></div>
-                <div class="activity-step active"><span class="activity-spinner"></span><div><strong>Searching the web</strong><small>Finding fresh sources and checking relevant evidence</small></div></div>
-                <div class="activity-step"><span class="activity-icon muted-icon">○</span><div><strong>Preparing the answer</strong><small>Organizing findings and source links</small></div></div>
-            </div>
-            <style>
-            .research-activity{margin:.9rem 0 1.1rem;padding:1rem 1.1rem;border:1px solid rgba(148,163,184,.16);border-radius:18px;background:rgba(10,25,42,.72);backdrop-filter:blur(22px);box-shadow:0 16px 45px rgba(0,0,0,.18)}
-            .activity-step{display:flex;align-items:center;gap:.8rem;padding:.55rem .15rem;color:#71859b;transition:.2s}.activity-step+.activity-step{border-top:1px solid rgba(255,255,255,.045)}
-            .activity-step strong{display:block;color:#7d91a7;font-size:.82rem;font-weight:600}.activity-step small{display:block;color:#61758b;font-size:.7rem;margin-top:.15rem}.activity-step.active strong{color:#e7f5ff}.activity-step.active small{color:#8ea7bd}.activity-icon{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:rgba(127,240,189,.1);color:#7ff0bd;font-size:.72rem}.muted-icon{background:rgba(255,255,255,.04);color:#53677c}.activity-spinner{width:22px;height:22px;border-radius:50%;border:2px solid rgba(127,227,255,.18);border-top-color:#7fe3ff;box-shadow:0 0 14px rgba(127,227,255,.22);animation:spin .85s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
-            </style>
-            ''', unsafe_allow_html=True)
-            try:
-                answer = run_research(user_request=user_request, depth=depth, report_style=report_style)
-            except Exception as exc:
-                activity.markdown('<div class="activity-wrap"><span class="activity-dot" style="background:#ff7f9a;box-shadow:0 0 0 5px rgba(255,127,154,.08),0 0 18px rgba(255,127,154,.65);"></span><div><div class="activity-text">Research stopped</div><div class="activity-sub">Something went wrong while processing the request</div></div></div>', unsafe_allow_html=True)
-                st.error(f"Research failed: {exc}")
-                st.stop()
-            activity.markdown('<div class="activity-wrap"><span class="activity-dot" style="background:#7ff0bd;box-shadow:0 0 0 5px rgba(127,240,189,.08),0 0 18px rgba(127,240,189,.55);"></span><div><div class="activity-text">Research complete</div><div class="activity-sub">Sources reviewed and response prepared</div></div></div>', unsafe_allow_html=True)
-            st.markdown(answer)
-            render_source_panel(answer)
-            render_live_sources(st.session_state.live_sources)
-            render_export_panel(answer, user_request)
+        elapsed = (datetime.now() - started).total_seconds()
+        st.caption(f"Research completed in {elapsed:.1f}s")
 
-            elapsed = (datetime.now() - started).total_seconds()
-            st.caption(f"Research completed in {elapsed:.1f}s")
+    # Store both sides of the turn for future context.
+    st.session_state.messages.append(
+        {"role": "assistant", "content": answer}
+    )
 
-        # Store both sides of the turn for future context.
-        st.session_state.messages.append(
-            {"role": "assistant", "content": answer}
-        )
+    st.session_state.research_history.append(
+        {
+            "user": user_request,
+            "assistant": answer,
+            "live_sources": list(st.session_state.live_sources),
+        }
+    )
 
-        st.session_state.research_history.append(
-            {
-                "user": user_request,
-                "assistant": answer,
-                "live_sources": list(st.session_state.live_sources),
-            }
-        )
-
-        # Keep the UI state synchronized immediately.
-        st.rerun()
+    # Keep the UI state synchronized immediately.
+    st.rerun()
