@@ -1,4 +1,5 @@
 import re
+from collections import Counter
 from io import BytesIO
 from datetime import datetime
 from html import escape
@@ -347,6 +348,7 @@ div.stButton > button:hover {
 }
 
 .sources-heading{font-family:"Space Grotesk",sans-serif;font-size:1rem;font-weight:700;margin:1.2rem 0 .65rem;color:#eaf6ff}.sources-heading span{color:#7891a8;font-size:.72rem;font-family:"DM Sans",sans-serif;font-weight:500;margin-left:.4rem}.sources-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.65rem}.source-card{display:flex;align-items:flex-start;gap:.65rem;padding:.82rem .9rem;border:1px solid rgba(148,163,184,.13);border-radius:16px;background:linear-gradient(135deg,rgba(13,31,51,.72),rgba(18,28,53,.58));text-decoration:none!important;color:#dcecff!important;backdrop-filter:blur(14px);transition:.2s;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}.source-card:hover{border-color:rgba(127,227,255,.42);transform:translateY(-2px);background:linear-gradient(135deg,rgba(19,46,70,.82),rgba(31,35,70,.68));box-shadow:0 12px 30px rgba(0,0,0,.18),inset 0 1px 0 rgba(255,255,255,.07)}.source-card strong{display:block;font-size:.78rem;font-weight:650;line-height:1.4}.source-card small{display:block;margin-top:.25rem;color:#7891a8;font-size:.64rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:390px}.source-card .source-number{color:#8de6ff;font-size:.65rem;font-weight:700;letter-spacing:.06em}.source-link-icon{width:27px;height:27px;display:grid;place-items:center;border-radius:9px;background:rgba(127,227,255,.09);color:#7fe3ff;flex:0 0 auto}.export-panel{margin-top:1.1rem;padding:.85rem 1rem;border:1px solid rgba(166,190,214,.13);border-radius:17px;background:rgba(9,23,39,.42)}.export-label{color:#8fa6ba;font-size:.7rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;margin-bottom:.55rem}@media(max-width:700px){.sources-grid{grid-template-columns:1fr}}
+.analytics-heading{font-family:"Space Grotesk",sans-serif;font-size:1.02rem;font-weight:700;margin:1.35rem 0 .65rem;color:#eaf6ff}.analytics-heading span{font-family:"DM Sans",sans-serif;color:#7891a8;font-size:.73rem;font-weight:500;margin-left:.45rem}.trend-cloud{display:flex;flex-wrap:wrap;gap:.45rem;margin-top:.7rem}.trend-chip{display:inline-flex;align-items:center;gap:.38rem;padding:.4rem .62rem;border:1px solid rgba(141,230,255,.15);border-radius:999px;background:rgba(16,39,61,.58);color:#d8ecfa;font-size:.73rem}.trend-chip b{color:#8de6ff;font-size:.63rem}.trend-chip em{font-style:normal;color:#b6a4ff;font-weight:700}.analytics-shell{padding:1rem;border:1px solid rgba(166,190,214,.13);border-radius:20px;background:rgba(10,24,41,.38)}
 
 .footer {
     text-align: center;
@@ -564,6 +566,78 @@ def extract_sources(text):
     return sources
 
 
+ANALYTICS_STOPWORDS = {
+    "about", "after", "again", "also", "among", "been", "being", "could", "does", "from",
+    "have", "into", "more", "most", "other", "over", "should", "some", "such", "than",
+    "their", "there", "these", "they", "this", "those", "through", "under", "using", "were",
+    "which", "while", "with", "would", "your", "that", "what", "when", "where", "will",
+    "research", "sources", "source", "based", "according", "reported", "information",
+}
+
+
+def keyword_counts(text, limit=14):
+    """Return the most frequent meaningful terms from the current answer."""
+    words = re.findall(r"\b[a-zA-Z][a-zA-Z0-9-]{3,}\b", text.lower())
+    counts = Counter(word.strip("-") for word in words if word not in ANALYTICS_STOPWORDS)
+    return counts.most_common(limit)
+
+
+def build_citation_graph(answer):
+    """Create a Graphviz citation map from cited domains and answer keywords."""
+    sources = extract_sources(answer)[:12]
+    terms = [term for term, _count in keyword_counts(answer, 8)]
+    lines = [
+        "graph G {",
+        '  graph [bgcolor="transparent", pad="0.2", nodesep="0.48", ranksep="0.8"];',
+        '  node [shape=box, style="rounded,filled", fontname="Arial", fontsize=11, color="#5ecbe9", fillcolor="#122e49", fontcolor="#eaf6ff", margin="0.16,0.10"];',
+        '  edge [color="#527b99", penwidth=1.2];',
+        '  nexus [label="NEXUS\nRESEARCH", shape=ellipse, color="#a99bff", fillcolor="#302e62", penwidth=2];',
+    ]
+    for index, (_title, url) in enumerate(sources, 1):
+        domain = urlparse(url).netloc.replace("www.", "") or f"source-{index}"
+        node_id = f"source_{index}"
+        lines.append(f'  {node_id} [label="{domain}", fillcolor="#123d52", color="#73dded"];')
+        lines.append(f'  nexus -- {node_id};')
+    for index, term in enumerate(terms, 1):
+        safe_term = re.sub(r"[^a-zA-Z0-9_-]", "", term)
+        node_id = f"term_{index}"
+        lines.append(f'  {node_id} [label="{safe_term}", shape=note, fillcolor="#302d58", color="#ad9fff"];')
+        lines.append(f'  nexus -- {node_id} [style=dashed, color="#765fa8"];')
+    lines.append("}")
+    return "\n".join(lines), len(sources), len(terms)
+
+
+def render_analytics_panel():
+    """Render the analytics tab from the session's accumulated research outputs."""
+    answers = [item["assistant"] for item in st.session_state.research_history if item.get("assistant")]
+    if not answers:
+        st.info("Run a research query to populate citation-network and keyword-trend analytics.")
+        return
+
+    combined = "\n\n".join(answers)
+    terms = keyword_counts(combined)
+    graph, source_count, term_count = build_citation_graph(combined)
+    analytics_cols = st.columns(3)
+    with analytics_cols[0]:
+        st.markdown(f'<div class="metric"><div class="metric-label">Research turns</div><div class="metric-value">{len(answers)}</div></div>', unsafe_allow_html=True)
+    with analytics_cols[1]:
+        st.markdown(f'<div class="metric"><div class="metric-label">Citation nodes</div><div class="metric-value">{source_count}</div></div>', unsafe_allow_html=True)
+    with analytics_cols[2]:
+        st.markdown(f'<div class="metric"><div class="metric-label">Tracked keywords</div><div class="metric-value">{term_count}</div></div>', unsafe_allow_html=True)
+
+    st.markdown('<div class="analytics-heading">Citation network <span>Research center → cited domains and recurring concepts</span></div>', unsafe_allow_html=True)
+    st.graphviz_chart(graph, use_container_width=True)
+
+    st.markdown('<div class="analytics-heading">Keyword trends <span>Term frequency across the current research session</span></div>', unsafe_allow_html=True)
+    if terms:
+        st.bar_chart({"Mentions": dict(terms)}, color="#8de6ff", use_container_width=True)
+        trend_cards = "".join(
+            f'<span class="trend-chip"><b>{index:02d}</b>{escape(term)} <em>{count}</em></span>'
+            for index, (term, count) in enumerate(terms, 1)
+        )
+        st.markdown(f'<div class="trend-cloud">{trend_cards}</div>', unsafe_allow_html=True)
+
+
 def render_source_panel(answer):
     sources = extract_sources(answer)
     if not sources:
@@ -657,19 +731,74 @@ def build_pdf_report(answer, query):
     return buffer.getvalue()
 
 
+def build_html_report(answer, query):
+    """Convert the research answer into a structured, readable HTML report."""
+    def inline_html(text):
+        rendered = escape(text)
+        rendered = re.sub(
+            r"\[([^\]]+)\]\((https?://[^)]+)\)",
+            lambda match: f'<a href="{escape(match.group(2), quote=True)}" target="_blank" rel="noopener">{escape(match.group(1))}</a>',
+            rendered,
+        )
+        rendered = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", rendered)
+        rendered = re.sub(r"`([^`]+)`", r"<code>\1</code>", rendered)
+        return rendered
+
+    content = []
+    list_items = []
+
+    def flush_list():
+        if list_items:
+            content.append("<ul>" + "".join(f"<li>{item}</li>" for item in list_items) + "</ul>")
+            list_items.clear()
+
+    for raw_line in answer.splitlines():
+        line = raw_line.strip()
+        if not line:
+            flush_list()
+        elif line.startswith("### "):
+            flush_list()
+            content.append(f"<h3>{inline_html(line[4:])}</h3>")
+        elif line.startswith("## "):
+            flush_list()
+            content.append(f"<h2>{inline_html(line[3:])}</h2>")
+        elif line.startswith("# "):
+            flush_list()
+            content.append(f"<h2>{inline_html(line[2:])}</h2>")
+        elif re.match(r"^[-*]\s+", line):
+            list_items.append(inline_html(re.sub(r"^[-*]\s+", "", line)))
+        else:
+            flush_list()
+            content.append(f"<p>{inline_html(line)}</p>")
+    flush_list()
+
+    sources = extract_sources(answer)[:12]
+    source_cards = "".join(
+        f'<a class="citation" href="{escape(url, quote=True)}" target="_blank" rel="noopener">'
+        f'<span class="citation-index">{index:02d}</span><span><strong>{escape(title)}</strong>'
+        f'<small>{escape(urlparse(url).netloc.replace("www.", ""))}</small></span><b>↗</b></a>'
+        for index, (title, url) in enumerate(sources, 1)
+    )
+    source_panel = f'<details class="sources" open><summary>Citations <span>{len(sources)} sources</span></summary><div class="citation-grid">{source_cards or "<p class=muted>No citations were found in this report.</p>"}</div></details>'
+    timestamp = datetime.now().strftime("%B %d, %Y at %H:%M")
+    return f'''<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{escape(query)} — Nexus Research</title>
+<style>
+:root{{--ink:#16283c;--muted:#667d92;--line:#dbe7ee;--cyan:#117c9d;--wash:#f4f9fb;--violet:#6555a8}}
+*{{box-sizing:border-box}}body{{margin:0;background:linear-gradient(135deg,#f5fbfd,#f8f7ff);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.7}}
+.page{{max-width:1040px;margin:0 auto;padding:34px 24px 64px}}.topbar{{height:8px;border-radius:99px;background:linear-gradient(90deg,#72dff4,var(--violet));margin-bottom:34px}}
+.eyebrow{{color:var(--cyan);font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}}h1{{font-size:clamp(2rem,5vw,3.7rem);line-height:1.08;letter-spacing:-.05em;margin:10px 0 12px;color:#10233d}}.meta{{color:var(--muted);font-size:14px;margin-bottom:26px}}
+.layout{{display:grid;grid-template-columns:minmax(0,1fr) 290px;gap:28px;align-items:start}}.report,.sources{{background:rgba(255,255,255,.82);border:1px solid rgba(136,171,194,.28);border-radius:22px;box-shadow:0 18px 50px rgba(34,59,82,.10)}}.report{{padding:28px 30px}}h2{{font-size:1.35rem;margin:26px 0 8px;color:#164a67;border-bottom:1px solid var(--line);padding-bottom:7px}}h3{{font-size:1.05rem;margin:20px 0 5px;color:#245e79}}p{{margin:0 0 12px}}ul{{padding-left:22px;margin-top:5px}}li{{margin:5px 0}}a{{color:#126f93;font-weight:650}}code{{background:#edf5f7;border-radius:6px;padding:2px 5px;font-size:.9em}}
+.sources{{position:sticky;top:20px;padding:18px}}summary{{cursor:pointer;font-weight:800;color:#183e56;list-style:none}}summary::-webkit-details-marker{{display:none}}summary span{{float:right;color:var(--muted);font-size:12px;font-weight:600}}.citation-grid{{display:grid;gap:9px;margin-top:14px}}.citation{{display:flex;align-items:center;gap:10px;text-decoration:none;border:1px solid var(--line);border-radius:13px;padding:10px;background:var(--wash);transition:.18s}}.citation:hover{{transform:translateY(-2px);border-color:#7bd9ec;background:#fff;box-shadow:0 8px 20px rgba(40,93,116,.12)}}.citation-index{{display:grid;place-items:center;width:28px;height:28px;border-radius:9px;background:#dff7fb;color:#0d7695;font-size:12px;font-weight:800;flex:0 0 auto}}.citation strong{{display:block;font-size:12px;line-height:1.35;color:#1a354b}}.citation small{{display:block;color:var(--muted);font-size:11px;margin-top:2px}}.citation b{{margin-left:auto;color:var(--cyan)}}.muted{{color:var(--muted)}}footer{{color:var(--muted);font-size:12px;margin-top:22px}}@media(max-width:800px){{.layout{{grid-template-columns:1fr}}.sources{{position:static}}.report{{padding:22px}}}}
+</style></head><body><main class="page"><div class="topbar"></div><div class="eyebrow">✦ Nexus Research AI · Research report</div><h1>{escape(query)}</h1><div class="meta">Exported {timestamp} · Interactive citation panel included</div><div class="layout"><article class="report">{"".join(content)}</article>{source_panel}</div><footer>Generated by Nexus Research AI. Citation cards open source pages in a new tab.</footer></main></body></html>'''
+
+
 def render_export_panel(answer, query, key_prefix="latest"):
     """Render native Streamlit downloads for the current research result."""
     plain_text = re.sub(r"[`*_>#]", "", answer)
     plain_text = re.sub(r"\n{3,}", "\n\n", plain_text).strip()
-    html_report = (
-        "<!doctype html><html><head><meta charset='utf-8'>"
-        "<meta name='viewport' content='width=device-width,initial-scale=1'>"
-        f"<title>{escape(query)} — Nexus Research</title>"
-        "<style>body{font-family:Inter,Arial,sans-serif;max-width:860px;margin:40px auto;padding:0 22px;color:#172335;line-height:1.65}h1,h2,h3{line-height:1.2}a{color:#146c94}pre{white-space:pre-wrap}</style>"
-        "</head><body>"
-        f"<h1>{escape(query)}</h1><p><strong>Nexus Research</strong> · Exported {datetime.now().strftime('%Y-%m-%d %H:%M')}</p>"
-        f"<pre>{escape(answer)}</pre></body></html>"
-    )
+    html_report = build_html_report(answer, query)
 
     try:
         pdf_report = build_pdf_report(answer, query)
@@ -741,94 +870,100 @@ with c2:
 with c3:
     st.markdown(f'<div class="metric"><div class="metric-label">Session Memory</div><div class="metric-value">{len(st.session_state.research_history)} turns</div></div>', unsafe_allow_html=True)
 
+research_tab, analytics_tab = st.tabs(["Research workspace", "Advanced analytics"])
+
+with analytics_tab:
+    render_analytics_panel()
+
+with research_tab:
 # =========================================================
 # Existing conversation
 # =========================================================
-if not st.session_state.messages:
-    st.markdown(
-        """
-        <div style="margin-top:1.5rem; color:#9fb0c5;">
-            <b>Try:</b> “Research the current AI coding assistant market in 2026.”
-            Then ask: “Which companies have the strongest developer ecosystems?”
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-last_user_request = "Research report"
-for message_index, message in enumerate(st.session_state.messages):
-    role = message["role"]
-
-    if role == "user":
-        last_user_request = message["content"]
+    if not st.session_state.messages:
         st.markdown(
-            f'<div class="user-message"><div class="user-message-label">You</div>{escape(message["content"])}</div>',
+            """
+            <div style="margin-top:1.5rem; color:#9fb0c5;">
+                <b>Try:</b> “Research the current AI coding assistant market in 2026.”
+                Then ask: “Which companies have the strongest developer ecosystems?”
+            </div>
+            """,
             unsafe_allow_html=True,
         )
-    else:
+
+    last_user_request = "Research report"
+    for message_index, message in enumerate(st.session_state.messages):
+        role = message["role"]
+
+        if role == "user":
+            last_user_request = message["content"]
+            st.markdown(
+                f'<div class="user-message"><div class="user-message-label">You</div>{escape(message["content"])}</div>',
+                unsafe_allow_html=True,
+            )
+        else:
+            with st.chat_message("assistant"):
+                st.markdown(message["content"])
+                render_source_panel(message["content"])
+                render_export_panel(message["content"], last_user_request, key_prefix=f"history_{message_index}")
+
+    # =========================================================
+    # Chat input
+    # =========================================================
+    user_request = st.chat_input(
+        "Ask a research question or continue the conversation…"
+    )
+
+    if user_request:
+        st.session_state.messages.append(
+            {"role": "user", "content": user_request}
+        )
+
+        st.markdown(
+            f'<div class="user-message"><div class="user-message-label">You</div>{escape(user_request)}</div>',
+            unsafe_allow_html=True,
+        )
+
+        started = datetime.now()
+
         with st.chat_message("assistant"):
-            st.markdown(message["content"])
-            render_source_panel(message["content"])
-            render_export_panel(message["content"], last_user_request, key_prefix=f"history_{message_index}")
+            activity = st.empty()
+            activity.markdown('''
+            <div class="research-activity">
+                <div class="activity-step done"><span class="activity-icon">✓</span><div><strong>Understanding your request</strong><small>Connecting the question with your session context</small></div></div>
+                <div class="activity-step active"><span class="activity-spinner"></span><div><strong>Searching the web</strong><small>Finding fresh sources and checking relevant evidence</small></div></div>
+                <div class="activity-step"><span class="activity-icon muted-icon">○</span><div><strong>Preparing the answer</strong><small>Organizing findings and source links</small></div></div>
+            </div>
+            <style>
+            .research-activity{margin:.9rem 0 1.1rem;padding:1rem 1.1rem;border:1px solid rgba(148,163,184,.16);border-radius:18px;background:rgba(10,25,42,.72);backdrop-filter:blur(22px);box-shadow:0 16px 45px rgba(0,0,0,.18)}
+            .activity-step{display:flex;align-items:center;gap:.8rem;padding:.55rem .15rem;color:#71859b;transition:.2s}.activity-step+.activity-step{border-top:1px solid rgba(255,255,255,.045)}
+            .activity-step strong{display:block;color:#7d91a7;font-size:.82rem;font-weight:600}.activity-step small{display:block;color:#61758b;font-size:.7rem;margin-top:.15rem}.activity-step.active strong{color:#e7f5ff}.activity-step.active small{color:#8ea7bd}.activity-icon{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:rgba(127,240,189,.1);color:#7ff0bd;font-size:.72rem}.muted-icon{background:rgba(255,255,255,.04);color:#53677c}.activity-spinner{width:22px;height:22px;border-radius:50%;border:2px solid rgba(127,227,255,.18);border-top-color:#7fe3ff;box-shadow:0 0 14px rgba(127,227,255,.22);animation:spin .85s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+            </style>
+            ''', unsafe_allow_html=True)
+            try:
+                answer = run_research(user_request=user_request, depth=depth, report_style=report_style)
+            except Exception as exc:
+                activity.markdown('<div class="activity-wrap"><span class="activity-dot" style="background:#ff7f9a;box-shadow:0 0 0 5px rgba(255,127,154,.08),0 0 18px rgba(255,127,154,.65);"></span><div><div class="activity-text">Research stopped</div><div class="activity-sub">Something went wrong while processing the request</div></div></div>', unsafe_allow_html=True)
+                st.error(f"Research failed: {exc}")
+                st.stop()
+            activity.markdown('<div class="activity-wrap"><span class="activity-dot" style="background:#7ff0bd;box-shadow:0 0 0 5px rgba(127,240,189,.08),0 0 18px rgba(127,240,189,.55);"></span><div><div class="activity-text">Research complete</div><div class="activity-sub">Sources reviewed and response prepared</div></div></div>', unsafe_allow_html=True)
+            st.markdown(answer)
+            render_source_panel(answer)
+            render_export_panel(answer, user_request)
 
-# =========================================================
-# Chat input
-# =========================================================
-user_request = st.chat_input(
-    "Ask a research question or continue the conversation…"
-)
+            elapsed = (datetime.now() - started).total_seconds()
+            st.caption(f"Research completed in {elapsed:.1f}s")
 
-if user_request:
-    st.session_state.messages.append(
-        {"role": "user", "content": user_request}
-    )
+        # Store both sides of the turn for future context.
+        st.session_state.messages.append(
+            {"role": "assistant", "content": answer}
+        )
 
-    st.markdown(
-        f'<div class="user-message"><div class="user-message-label">You</div>{escape(user_request)}</div>',
-        unsafe_allow_html=True,
-    )
+        st.session_state.research_history.append(
+            {
+                "user": user_request,
+                "assistant": answer,
+            }
+        )
 
-    started = datetime.now()
-
-    with st.chat_message("assistant"):
-        activity = st.empty()
-        activity.markdown('''
-        <div class="research-activity">
-            <div class="activity-step done"><span class="activity-icon">✓</span><div><strong>Understanding your request</strong><small>Connecting the question with your session context</small></div></div>
-            <div class="activity-step active"><span class="activity-spinner"></span><div><strong>Searching the web</strong><small>Finding fresh sources and checking relevant evidence</small></div></div>
-            <div class="activity-step"><span class="activity-icon muted-icon">○</span><div><strong>Preparing the answer</strong><small>Organizing findings and source links</small></div></div>
-        </div>
-        <style>
-        .research-activity{margin:.9rem 0 1.1rem;padding:1rem 1.1rem;border:1px solid rgba(148,163,184,.16);border-radius:18px;background:rgba(10,25,42,.72);backdrop-filter:blur(22px);box-shadow:0 16px 45px rgba(0,0,0,.18)}
-        .activity-step{display:flex;align-items:center;gap:.8rem;padding:.55rem .15rem;color:#71859b;transition:.2s}.activity-step+.activity-step{border-top:1px solid rgba(255,255,255,.045)}
-        .activity-step strong{display:block;color:#7d91a7;font-size:.82rem;font-weight:600}.activity-step small{display:block;color:#61758b;font-size:.7rem;margin-top:.15rem}.activity-step.active strong{color:#e7f5ff}.activity-step.active small{color:#8ea7bd}.activity-icon{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:rgba(127,240,189,.1);color:#7ff0bd;font-size:.72rem}.muted-icon{background:rgba(255,255,255,.04);color:#53677c}.activity-spinner{width:22px;height:22px;border-radius:50%;border:2px solid rgba(127,227,255,.18);border-top-color:#7fe3ff;box-shadow:0 0 14px rgba(127,227,255,.22);animation:spin .85s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
-        </style>
-        ''', unsafe_allow_html=True)
-        try:
-            answer = run_research(user_request=user_request, depth=depth, report_style=report_style)
-        except Exception as exc:
-            activity.markdown('<div class="activity-wrap"><span class="activity-dot" style="background:#ff7f9a;box-shadow:0 0 0 5px rgba(255,127,154,.08),0 0 18px rgba(255,127,154,.65);"></span><div><div class="activity-text">Research stopped</div><div class="activity-sub">Something went wrong while processing the request</div></div></div>', unsafe_allow_html=True)
-            st.error(f"Research failed: {exc}")
-            st.stop()
-        activity.markdown('<div class="activity-wrap"><span class="activity-dot" style="background:#7ff0bd;box-shadow:0 0 0 5px rgba(127,240,189,.08),0 0 18px rgba(127,240,189,.55);"></span><div><div class="activity-text">Research complete</div><div class="activity-sub">Sources reviewed and response prepared</div></div></div>', unsafe_allow_html=True)
-        st.markdown(answer)
-        render_source_panel(answer)
-        render_export_panel(answer, user_request)
-
-        elapsed = (datetime.now() - started).total_seconds()
-        st.caption(f"Research completed in {elapsed:.1f}s")
-
-    # Store both sides of the turn for future context.
-    st.session_state.messages.append(
-        {"role": "assistant", "content": answer}
-    )
-
-    st.session_state.research_history.append(
-        {
-            "user": user_request,
-            "assistant": answer,
-        }
-    )
-
-    # Keep the UI state synchronized immediately.
-    st.rerun()
+        # Keep the UI state synchronized immediately.
+        st.rerun()
