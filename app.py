@@ -1,4 +1,5 @@
 import re
+import time
 from collections import Counter
 from io import BytesIO
 from datetime import datetime
@@ -28,12 +29,13 @@ TAVILY_API_KEY = st.secrets.get("TAVILY_API_KEY")
 GEMINI_MODEL = st.secrets.get("GEMINI_MODEL", "gemini-3.5-flash-lite")
 MAX_SEARCH_RESULTS = int(st.secrets.get("MAX_SEARCH_RESULTS", 6))
 
-if not GEMINI_API_KEY or not TAVILY_API_KEY:
-    st.error(
-        "Missing API credentials. Add GEMINI_API_KEY and TAVILY_API_KEY "
-        "in Streamlit Cloud → App settings → Secrets."
+KEYS_READY = bool(GEMINI_API_KEY and TAVILY_API_KEY)
+if not KEYS_READY:
+    st.warning(
+        "Live research is paused: add GEMINI_API_KEY and TAVILY_API_KEY "
+        "in Streamlit Cloud → App settings → Secrets. "
+        "Demo mode below still works without keys."
     )
-    st.stop()
 
 # =========================================================
 # Session memory
@@ -46,6 +48,15 @@ if "research_history" not in st.session_state:
 
 if "live_sources" not in st.session_state:
     st.session_state.live_sources = []
+
+if "agent_status" not in st.session_state:
+    st.session_state.agent_status = {"scout": "idle", "analyst": "idle", "verifier": "idle", "writer": "idle"}
+
+if "agent_feed" not in st.session_state:
+    st.session_state.agent_feed = []
+
+if "demo_notice" not in st.session_state:
+    st.session_state.demo_notice = False
 
 # CrewAI can execute tools outside Streamlit's immediate script context. Keep
 # a process-level buffer as a reliable citation bridge for the active run.
@@ -295,6 +306,31 @@ div.stButton > button {
     min-height: 2.7rem;
 }
 
+div.stDownloadButton > button {
+    border: 1px solid rgba(126,224,255,.25);
+    border-radius: 14px;
+    background: linear-gradient(135deg, rgba(48,126,162,.88), rgba(103,76,171,.88));
+    color: white;
+    font-weight: 700;
+    min-height: 2.7rem;
+}
+
+div.stDownloadButton > button:hover {
+    border-color: rgba(126,224,255,.7);
+    transform: translateY(-1px);
+    color: white;
+}
+
+/* Buttons wrapped in a tooltip target (st.button with help=) keep the same look. */
+div.stTooltipHoverTarget > button {
+    border: 1px solid rgba(126,224,255,.25);
+    border-radius: 14px;
+    background: linear-gradient(135deg, rgba(48,126,162,.88), rgba(103,76,171,.88));
+    color: white;
+    font-weight: 700;
+    min-height: 2.7rem;
+}
+
 div.stButton > button:hover {
     border-color: rgba(126,224,255,.7);
     transform: translateY(-1px);
@@ -373,6 +409,49 @@ div.stButton > button:hover {
     padding-top: 2rem;
 }
 
+/* ---- Agent Dock ---- */
+.agent-dock{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.7rem;margin:.4rem 0 .2rem}
+.agent-card{position:relative;padding:.85rem .8rem .8rem;border:1px solid rgba(166,190,214,.15);border-radius:20px;background:linear-gradient(150deg,rgba(16,32,54,.78),rgba(11,22,39,.62));backdrop-filter:blur(16px);text-align:center;transition:.25s}
+.agent-card.working{border-color:var(--ac,#8de6ff);box-shadow:0 0 0 1px var(--ac,#8de6ff),0 12px 34px rgba(0,0,0,.35),0 0 26px var(--ac,#8de6ff)}
+.agent-card.done{border-color:rgba(145,241,197,.35)}
+.agent-card .robot{display:block;margin:0 auto .45rem}
+.agent-card.working .robot{animation:robot-bob 1s ease-in-out infinite}
+@keyframes robot-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+.agent-name{font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:.86rem;letter-spacing:.04em}
+.agent-role{color:#96a9bc;font-size:.7rem;margin-top:.12rem}
+.agent-pill{display:inline-block;margin-top:.5rem;padding:.22rem .6rem;border-radius:999px;font-size:.62rem;font-weight:800;letter-spacing:.09em;text-transform:uppercase}
+.pill-idle{background:rgba(255,255,255,.06);color:#8fa3ba;border:1px solid rgba(255,255,255,.08)}
+.pill-working{background:var(--ac,#8de6ff);color:#07101d;animation:pulse 1.2s ease-in-out infinite}
+.pill-done{background:rgba(145,241,197,.16);color:#91f1c5;border:1px solid rgba(145,241,197,.35)}
+.agent-check{position:absolute;top:.55rem;right:.6rem;width:20px;height:20px;border-radius:50%;background:#91f1c5;color:#07101d;font-size:.68rem;font-weight:800;display:grid;place-items:center}
+.agent-feed{margin:.55rem 0 .2rem;padding:.6rem .9rem;border:1px solid rgba(148,163,184,.13);border-radius:14px;background:rgba(8,22,38,.5);font-size:.78rem;color:#c4d8ea}
+.agent-feed div{padding:.14rem 0}
+.agent-feed b{color:#8de6ff}
+.demo-banner{margin:.6rem 0;padding:.6rem .9rem;border:1px dashed rgba(255,196,107,.55);border-radius:14px;background:rgba(255,196,107,.08);color:#ffd9a0;font-size:.8rem}
+
+/* ---- Report Window ---- */
+[data-testid="stVerticalBlockBorderWrapper"]{border:1px solid rgba(141,220,255,.30)!important;border-radius:22px!important;background:linear-gradient(160deg,rgba(13,30,50,.88),rgba(9,20,36,.80))!important;box-shadow:0 26px 70px rgba(0,0,0,.35)!important;margin:.9rem 0}
+.report-window{border:1px solid rgba(141,220,255,.28);border-radius:22px;overflow:hidden;background:linear-gradient(160deg,rgba(13,30,50,.85),rgba(9,20,36,.78));backdrop-filter:blur(22px);box-shadow:0 26px 70px rgba(0,0,0,.35);margin:.9rem 0}
+.report-titlebar{display:flex;align-items:center;gap:.7rem;padding:.75rem 1.05rem;border-bottom:1px solid rgba(166,190,214,.14);background:rgba(255,255,255,.03)}
+.traffic-dots{display:flex;gap:.35rem}
+.traffic-dots span{width:11px;height:11px;border-radius:50%}
+.traffic-dots span:nth-child(1){background:#ff5f57}.traffic-dots span:nth-child(2){background:#febc2e}.traffic-dots span:nth-child(3){background:#28c840}
+.report-titlebar .rw-label{font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:.72rem;letter-spacing:.14em;color:#8de6ff}
+.report-titlebar .rw-query{font-size:.82rem;color:#eaf6ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1}
+.report-titlebar .rw-time{font-size:.68rem;color:#7f94aa;white-space:nowrap}
+.report-body{padding:1.15rem 1.25rem 1.25rem}
+.exec-box{padding:1rem 1.15rem;border:1px solid rgba(141,230,255,.25);border-left:4px solid #8de6ff;border-radius:16px;background:linear-gradient(135deg,rgba(141,230,255,.10),rgba(182,164,255,.07));line-height:1.7;color:#e6f3ff}
+.rw-section{font-family:"Space Grotesk",sans-serif;font-size:1.02rem;font-weight:700;margin:1.35rem 0 .6rem;color:#eaf6ff}
+.rw-section span{color:#7891a8;font-size:.72rem;font-family:"DM Sans",sans-serif;font-weight:500;margin-left:.4rem}
+.finding-card{display:flex;gap:.8rem;padding:.85rem 1rem;border:1px solid rgba(148,163,184,.14);border-radius:16px;background:linear-gradient(135deg,rgba(13,31,51,.72),rgba(18,28,53,.58));margin-bottom:.55rem;line-height:1.6}
+.finding-num{flex:0 0 auto;width:28px;height:28px;border-radius:9px;display:grid;place-items:center;background:rgba(141,230,255,.12);color:#8de6ff;font-weight:800;font-size:.78rem}
+.rw-h3{font-family:"Space Grotesk",sans-serif;font-size:.95rem;font-weight:700;color:#bfeaff;margin:1rem 0 .3rem}
+.rw-block{padding:.95rem 1.05rem;border:1px solid rgba(148,163,184,.13);border-radius:16px;background:rgba(255,255,255,.025);margin-bottom:.65rem}
+.rw-block .rw-section{margin-top:0}
+.report-body p{line-height:1.7;color:#dcecff;margin:.35rem 0 .7rem}
+.report-body ul{margin:.3rem 0 .7rem;padding-left:1.2rem;line-height:1.65;color:#dcecff}
+@media(max-width:700px){.agent-dock{grid-template-columns:repeat(2,minmax(0,1fr))}.report-titlebar .rw-time{display:none}}
+
 </style>
 """,
     unsafe_allow_html=True,
@@ -381,12 +460,14 @@ div.stButton > button:hover {
 # =========================================================
 # Tavily tool
 # =========================================================
-tavily_client = TavilyClient(api_key=TAVILY_API_KEY)
+tavily_client = TavilyClient(api_key=TAVILY_API_KEY) if TAVILY_API_KEY else None
 
 
 @tool("Tavily Web Search")
 def tavily_web_search(query: str) -> str:
     """Search the live internet with Tavily and return useful source content, titles, and URLs."""
+    if tavily_client is None:
+        return "Web search unavailable: TAVILY_API_KEY is not configured."
     try:
         response = tavily_client.search(
             query=query,
@@ -472,13 +553,165 @@ def is_greeting(text):
 
 
 # =========================================================
-# CrewAI single-agent system
+# Multi-agent crew: SCOUT -> ANALYST -> VERIFIER -> WRITER
 # =========================================================
-def run_research(user_request: str, depth: str, report_style: str):
+AGENT_DEFS = [
+    {
+        "id": "scout",
+        "name": "SCOUT",
+        "role": "Web Scout",
+        "color": "#38e1ff",
+        "tagline": "Live web search · Tavily",
+        "goal": "Gather fresh, authoritative live sources for the user's request using Tavily web search.",
+        "backstory": (
+            "You are a fast, thorough web scout. You run targeted searches, "
+            "collect the most authoritative and recent sources, and hand over "
+            "exact titles, URLs and evidence snippets. You never summarise away "
+            "the source — the next agent must be able to check your work."
+        ),
+    },
+    {
+        "id": "analyst",
+        "name": "ANALYST",
+        "role": "Insight Analyst",
+        "color": "#b6a4ff",
+        "tagline": "Patterns · comparisons",
+        "goal": "Synthesize the scout's evidence into clear patterns, comparisons and trade-offs.",
+        "backstory": (
+            "You are a sharp insight analyst. You read the scout's evidence, "
+            "spot agreements and contradictions, compare options side by side, "
+            "and turn raw findings into structured insight. You never invent "
+            "numbers or claims that the evidence does not support."
+        ),
+    },
+    {
+        "id": "verifier",
+        "name": "VERIFIER",
+        "role": "Fact Checker",
+        "color": "#5df0a8",
+        "tagline": "Cross-checks · flags doubt",
+        "goal": "Cross-check important claims against independent sources and flag anything uncertain or unverified.",
+        "backstory": (
+            "You are a sceptical fact checker. You re-check the important claims "
+            "against independent sources, mark anything that is single-sourced, "
+            "outdated or uncertain, and strike anything that cannot be verified. "
+            "You never invent a URL, a statistic or a quotation."
+        ),
+    },
+    {
+        "id": "writer",
+        "name": "WRITER",
+        "role": "Report Composer",
+        "color": "#ffc46b",
+        "tagline": "Structured final report",
+        "goal": "Write the final structured report in the requested style and depth, citing only real Tavily URLs.",
+        "backstory": (
+            "You are a precise report composer. You turn verified findings into "
+            "a polished, well-structured report in the requested style, with "
+            "clear headings and a Sources section that lists only URLs actually "
+            "returned by Tavily. You never add a source you did not receive."
+        ),
+    },
+]
+
+DOCK_PLACEHOLDER = None
+FEED_PLACEHOLDER = None
+
+
+def robot_svg(color, size=62, working=False):
+    """A distinct little robot avatar (inline SVG) for one crew agent."""
+    cls = "robot robot-working" if working else "robot"
+    return (
+        f'<svg class="{cls}" width="{size}" height="{size}" viewBox="0 0 64 64" '
+        f'xmlns="http://www.w3.org/2000/svg" role="img" aria-label="robot avatar">'
+        f'<line x1="32" y1="12" x2="32" y2="5" stroke="{color}" stroke-width="2.5" stroke-linecap="round"/>'
+        f'<circle cx="32" cy="5" r="3.4" fill="{color}"/>'
+        f'<rect x="14" y="12" width="36" height="27" rx="10" fill="#0e2237" stroke="{color}" stroke-width="2"/>'
+        f'<circle cx="24.5" cy="24" r="3.6" fill="{color}"/>'
+        f'<circle cx="39.5" cy="24" r="3.6" fill="{color}"/>'
+        f'<path d="M26 31 Q32 35.5 38 31" stroke="{color}" stroke-width="2" fill="none" stroke-linecap="round"/>'
+        f'<rect x="18" y="42" width="28" height="15" rx="7.5" fill="#0e2237" stroke="{color}" stroke-width="2"/>'
+        f'<circle cx="32" cy="49.5" r="3.2" fill="{color}"/>'
+        f'<line x1="14" y1="48" x2="8" y2="44" stroke="{color}" stroke-width="2" stroke-linecap="round"/>'
+        f'<line x1="50" y1="48" x2="56" y2="44" stroke="{color}" stroke-width="2" stroke-linecap="round"/>'
+        f'</svg>'
+    )
+
+
+def agent_status_label(status):
+    return {"idle": "Idle", "working": "Working", "done": "Done"}.get(status, "Idle")
+
+
+def render_agent_dock(status, feed=None):
+    """HTML for the Agent Dock: 4 robot avatars with name, role and status pill."""
+    cards = []
+    for agent in AGENT_DEFS:
+        state = status.get(agent["id"], "idle")
+        color = agent["color"]
+        check = '<span class="agent-check">✓</span>' if state == "done" else ""
+        cards.append(
+            f'<div class="agent-card {state}" style="--ac:{color}">'
+            f'{check}{robot_svg(color, working=(state == "working"))}'
+            f'<div class="agent-name" style="color:{color}">{agent["name"]}</div>'
+            f'<div class="agent-role">{agent["role"]}</div>'
+            f'<div class="agent-role" style="font-size:.64rem">{agent["tagline"]}</div>'
+            f'<span class="agent-pill pill-{state}">{agent_status_label(state)}</span>'
+            f'</div>'
+        )
+    html = '<div class="agent-dock">' + "".join(cards) + "</div>"
+    if feed:
+        lines = "".join(f"<div>{line}</div>" for line in feed[-6:])
+        html += f'<div class="agent-feed">{lines}</div>'
+    return html
+
+
+def refresh_dock():
+    """Re-render the live dock + feed placeholders during a run (no-op outside a run)."""
+    if DOCK_PLACEHOLDER is not None:
+        DOCK_PLACEHOLDER.markdown(
+            render_agent_dock(st.session_state.agent_status, st.session_state.agent_feed),
+            unsafe_allow_html=True,
+        )
+
+
+def _task_callback_factory():
+    """CrewAI task_callback: mark each agent done in order as its task finishes."""
+    order = [a["id"] for a in AGENT_DEFS]
+    counter = {"n": 0}
+
+    def _callback(_task_output):
+        idx = counter["n"]
+        counter["n"] += 1
+        if idx < len(order):
+            done_id = order[idx]
+            st.session_state.agent_status[done_id] = "done"
+            agent = AGENT_DEFS[idx]
+            st.session_state.agent_feed.append(
+                f"<b>{agent['name']}</b> finished — {agent['role']} complete ✓"
+            )
+            if idx + 1 < len(order):
+                nxt = AGENT_DEFS[idx + 1]
+                st.session_state.agent_status[nxt["id"]] = "working"
+                st.session_state.agent_feed.append(
+                    f"<b>{nxt['name']}</b> is now working…"
+                )
+        refresh_dock()
+
+    return _callback
+
+
+def run_research(user_request: str, depth: str, report_style: str, dock_ph=None, feed_ph=None):
     if is_greeting(user_request):
         return (
             "Hello! I’m Nexus Research AI. What would you like to investigate today? "
             "You can ask me to research a topic, compare sources, or continue an earlier thread."
+        )
+
+    if not KEYS_READY:
+        return (
+            "Live research needs API keys. Add GEMINI_API_KEY and TAVILY_API_KEY "
+            "in Streamlit Cloud → App settings → Secrets, then ask again — "
+            "or try the ▶ Run demo button to see the crew work with sample data."
         )
 
     depth_rules = {
@@ -513,30 +746,55 @@ def run_research(user_request: str, depth: str, report_style: str):
         temperature=0.2,
     )
 
-    researcher = Agent(
-        role="Senior Web Research Analyst",
-        goal=(
-            "Understand the user's current request in the context of the conversation, "
-            "research current information using live web sources, and produce a "
-            "trustworthy source-backed answer."
-        ),
-        backstory=(
-            "You are a rigorous research analyst with conversation awareness. "
-            "You use previous turns to understand references such as 'that', 'those "
-            "findings', 'the companies we discussed', and 'compare this with the "
-            "previous result'. You do not blindly repeat old information when the "
-            "user asks for current information. You search the web again when "
-            "verification or updated information is required. You never fabricate "
-            "facts, URLs, citations, statistics, or quotations."
-        ),
+    global DOCK_PLACEHOLDER, FEED_PLACEHOLDER
+    DOCK_PLACEHOLDER, FEED_PLACEHOLDER = dock_ph, feed_ph
+    st.session_state.agent_status = {a["id"]: "idle" for a in AGENT_DEFS}
+    st.session_state.agent_status["scout"] = "working"
+    st.session_state.agent_feed = ["<b>SCOUT</b> is now working…"]
+    refresh_dock()
+
+    scout = Agent(
+        role="Web Scout",
+        goal=AGENT_DEFS[0]["goal"],
+        backstory=AGENT_DEFS[0]["backstory"],
         tools=[tavily_web_search],
         llm=llm,
         allow_delegation=False,
         verbose=False,
         max_iter=10,
     )
+    analyst = Agent(
+        role="Insight Analyst",
+        goal=AGENT_DEFS[1]["goal"],
+        backstory=AGENT_DEFS[1]["backstory"],
+        tools=[],
+        llm=llm,
+        allow_delegation=False,
+        verbose=False,
+        max_iter=8,
+    )
+    verifier = Agent(
+        role="Fact Checker",
+        goal=AGENT_DEFS[2]["goal"],
+        backstory=AGENT_DEFS[2]["backstory"],
+        tools=[],
+        llm=llm,
+        allow_delegation=False,
+        verbose=False,
+        max_iter=8,
+    )
+    writer = Agent(
+        role="Report Composer",
+        goal=AGENT_DEFS[3]["goal"],
+        backstory=AGENT_DEFS[3]["backstory"],
+        tools=[],
+        llm=llm,
+        allow_delegation=False,
+        verbose=False,
+        max_iter=8,
+    )
 
-    task = Task(
+    scout_task = Task(
         description=f"""
 CURRENT USER REQUEST:
 {user_request}
@@ -547,66 +805,125 @@ CONVERSATION MEMORY:
 RESEARCH DEPTH:
 {depth_rules[depth]}
 
-OUTPUT STYLE:
-{style_rules[report_style]}
+You are SCOUT. Search the live web with Tavily Web Search, running several
+targeted queries. Collect the strongest, most authoritative and most recent
+sources. For each source record its exact title, exact URL and a short evidence
+snippet. Prefer primary, official, academic or otherwise authoritative sources;
+for paper-focused requests also seek arXiv, PubMed, Semantic Scholar, Crossref,
+ACM, IEEE or official institutional repositories. Never invent a source or URL.
+Return a structured evidence pack: the key facts found, grouped by theme, each
+with its source title and URL.
+""",
+        expected_output="A structured evidence pack: key facts grouped by theme, each with exact source title and URL.",
+        agent=scout,
+    )
+    analyst_task = Task(
+        description="""
+You are ANALYST. Using SCOUT's evidence pack, synthesize the findings: find
+patterns, agreements and contradictions, compare the main options side by side,
+and draw out the trade-offs and implications. Organize the synthesis into clear
+themes with the evidence behind each. Do not invent numbers or claims the
+evidence does not support; mark anything weakly supported as uncertain.
+""",
+        expected_output="A structured synthesis: themes, patterns, comparisons and trade-offs, each tied to the scout's evidence.",
+        agent=analyst,
+        context=[scout_task],
+    )
+    verifier_task = Task(
+        description="""
+You are VERIFIER. Cross-check the ANALYST's important claims against
+independent sources in SCOUT's evidence pack. Confirm what is corroborated,
+flag anything single-sourced, outdated or uncertain, and strike anything that
+cannot be verified. Also check that every finding carries a citation to a real
+URL from the evidence pack — flag any finding without one. List the verified
+claims and the flagged items separately. Never invent a URL, statistic or
+quotation. Only cite URLs from the evidence pack.
+""",
+        expected_output="A verification report: verified claims plus a flagged-items list of uncertain or unverified claims.",
+        agent=verifier,
+        context=[analyst_task],
+    )
+    writer_task = Task(
+        description=f"""
+You are WRITER. Write the final report from the VERIFIER's verified findings,
+in this output style: {style_rules[report_style]}
 
-Instructions:
+RESEARCH DEPTH:
+{depth_rules[depth]}
 
-1. First understand the CURRENT request.
-2. Use conversation memory to resolve references and maintain continuity.
-3. Do not assume the previous answer is still current when the user asks about
-   current facts. Search the live web again.
-4. Use Tavily Web Search for web research.
-5. Refine searches when the evidence is incomplete.
-6. Prefer primary, official, academic, or otherwise authoritative sources.
-   For paper-focused requests, actively seek current scholarly records from sources such as
-   arXiv, PubMed, Semantic Scholar, Crossref, ACM, IEEE, or official institutional repositories.
-7. Cross-check important factual claims.
-8. Distinguish established facts, source-reported claims, analysis, and uncertainty.
-9. Never invent a source or URL.
-10. Only cite URLs actually returned by Tavily.
-11. If the current request is a simple follow-up that can be answered from the
-    existing context, still verify time-sensitive facts when appropriate.
-12. Produce a polished answer.
-    If OUTPUT STYLE is Detailed Report, follow its requested long-form length and section depth even
-    when the user request is short. Expand the evidence and analysis rather than summarizing briefly.
-    Treat the requested report template as a completion contract: do not omit sections, do not stop after
-    the executive summary, and do not replace the analysis with a short list of links. Plan the answer before
-    writing it, allocate space to every required section, and continue until the full template is complete.
-    Use compact paragraphs and Markdown headings to fit the complete report within the response budget. If
-    approaching a response limit, prioritize completing every required section and the Sources section over
-    extra exposition; never end mid-sentence, mid-bullet, or mid-section.
-13. IMPORTANT: If you used web research, include a final `## Sources` section. For every source used, provide the exact URL returned by Tavily in Markdown link form: `- [Source title](https://...)`. Never omit the URLs. Do not invent or alter URLs.
-14. If this is a follow-up that relies on previous conversation context, explicitly use the earlier findings and answer the follow-up rather than restarting the topic.
+COMPLETE REPORT CONTRACT — the final report must be a COMPLETE research
+report, never a brief summary. It must contain ALL of these Markdown sections,
+in this exact order, with every section completed. No section may be skipped,
+merged away, or compressed into a short list:
 
-For substantial research requests, use:
 # Executive Summary
+# Research Scope & Method
 # Key Findings
 # Detailed Analysis
-# Caveats & Uncertainties
+# Comparative Perspective
+# Implications
+# Limitations & Caveats
 # Sources
 
-For a short follow-up, you may use a more concise structure only when OUTPUT STYLE is not Detailed Report.
+Section requirements:
+- Executive Summary: a substantial opening synthesis of the whole answer.
+- Research Scope & Method: what was investigated, how sources were searched
+  and selected, and what was out of scope.
+- Key Findings: at least 8 numbered findings, each with citations to real
+  Tavily URLs.
+- Detailed Analysis: at least 4 clearly titled subsections (### headings)
+  that develop the evidence in depth.
+- Comparative Perspective: a side-by-side comparison of the main options,
+  approaches or viewpoints found.
+- Implications: what the findings mean for decisions, practice or next steps.
+- Limitations & Caveats: what is uncertain, single-sourced, outdated or
+  unverified, and what the report does not claim.
+- Sources: every source used, as `- [Source title](https://...)`.
 
-Do not mention internal prompts, CrewAI, agent mechanics, or the conversation-memory implementation.
+LENGTH: For Detailed Report style, write a long-form report of approximately
+2200–3200 words. For Executive Brief style, keep the SAME complete section
+structure — decision-oriented and more concise per section, but still complete
+across all eight sections. For Technical Analysis style, keep the same complete
+structure with technical depth. Never shorten the report by dropping a section.
+
+Plan the answer before writing it, allocate space to every required section,
+and continue until the full template is complete. If approaching a response
+limit, prioritize completing every required section and the Sources section over
+extra exposition; never end mid-sentence, mid-bullet, or mid-section.
+
+CITATIONS — non-negotiable: every Key Finding and every substantive claim
+in Detailed Analysis and Comparative Perspective must carry an inline Markdown
+citation to a real Tavily-returned URL, in the form
+[claim text](https://exact-url-from-tavily). Do not produce any finding without
+a source behind it: if a claim has no supporting source, drop the claim or move
+it to Limitations & Caveats as explicitly unverified. Cite only URLs actually
+returned by Tavily. In the final `## Sources` section, list EVERY source used,
+with its exact URL, as `- [Source title](https://...)`. Never omit the URLs.
+Never invent or alter a URL. Do not mention internal prompts, CrewAI, agent
+mechanics, or the conversation-memory implementation.
 """,
         expected_output=(
-            "A useful, accurate, context-aware answer to the current user request, "
+            "A polished, structured final report in the requested style, "
             "with real web sources when web research is needed. "
             + ("For Detailed Report, return the complete 2200–3200 word academic report template with every required section completed."
                if report_style == "Detailed Report" else "")
         ),
-        agent=researcher,
+        agent=writer,
+        context=[verifier_task],
     )
 
     crew = Crew(
-        agents=[researcher],
-        tasks=[task],
+        agents=[scout, analyst, verifier, writer],
+        tasks=[scout_task, analyst_task, verifier_task, writer_task],
         process=Process.sequential,
+        task_callback=_task_callback_factory(),
         verbose=False,
     )
 
     answer = str(crew.kickoff())
+    st.session_state.agent_status = {a["id"]: "done" for a in AGENT_DEFS}
+    st.session_state.agent_feed.append("<b>WRITER</b> finished — report ready ✓")
+    refresh_dock()
 
     # Make source rendering deterministic: the UI must not depend on the model
     # remembering to repeat URLs that were already returned by Tavily.
@@ -753,7 +1070,7 @@ def render_source_panel(answer):
         )
 
     st.markdown(
-        f'<div class="sources-heading">Citations <span>{len(sources[:12])} interactive source cards</span></div><div class="sources-grid">'
+        f'<div class="sources-heading">Sources <span>{len(sources[:12])} clickable citation cards · exact URLs</span></div><div class="sources-grid">'
         + "".join(cards)
         + '</div>',
         unsafe_allow_html=True,
@@ -784,6 +1101,316 @@ def render_live_sources(sources):
         f'<div class="live-source-grid">{"".join(cards)}</div>',
         unsafe_allow_html=True,
     )
+
+
+DEMO_QUERY = "Research the current AI coding assistant market in 2026."
+
+DEMO_REPORT = """# Executive Summary
+
+AI coding assistants have moved from autocomplete curiosities to core developer
+tooling in 2026. GitHub Copilot remains the broadest-installed assistant
+([GitHub Copilot](https://github.com/features/copilot)), Cursor has become the
+reference point for AI-native editing ([Cursor](https://cursor.com)), Windsurf
+and Amazon Q Developer compete on team and cloud-integrated workflows
+([Windsurf](https://windsurf.com), [Amazon Q Developer](https://aws.amazon.com/q/developer/)),
+Sourcegraph Cody leans on whole-codebase context
+([Sourcegraph Cody](https://sourcegraph.com/cody)), JetBrains AI brings
+assistance into its mature IDEs ([JetBrains AI](https://www.jetbrains.com/ai/)),
+and Replit Agent targets building full apps from a prompt
+([Replit](https://replit.com)).
+
+The market is no longer decided by raw model quality alone. The differentiators
+in 2026 are agentic workflows — assistants that plan, edit across files, run
+tests and iterate — plus codebase understanding, model choice, privacy controls
+and pricing. Teams now evaluate assistants on how much of a real task they can
+complete unsupervised, not on how good a single suggestion looks.
+
+# Research Scope & Method
+
+This sample report covers the leading AI coding assistants available in 2026:
+GitHub Copilot, Cursor, Windsurf, Amazon Q Developer, Sourcegraph Cody,
+JetBrains AI and Replit Agent. It compares them on agentic capability,
+codebase context, privacy and deployment options, and pricing approach. The
+sample is drawn from the vendors' own product pages (listed in Sources); it
+does not include hands-on benchmarking or usage telemetry, and it does not
+assert market-share figures, which would need independent measurement.
+
+# Key Findings
+
+1. GitHub Copilot is the most widely deployed assistant, deeply integrated
+   into Visual Studio Code, JetBrains IDEs, Neovim and GitHub itself, with
+   agent mode and code review features
+   ([GitHub Copilot](https://github.com/features/copilot)).
+2. Cursor pioneered the AI-native editor model and set the bar for agentic
+   multi-file editing and codebase-aware chat
+   ([Cursor](https://cursor.com)).
+3. Windsurf (formerly Codeium) targets teams with agentic flows and
+   enterprise deployment options
+   ([Windsurf](https://windsurf.com)).
+4. Amazon Q Developer is the AWS-integrated assistant, built for developers
+   working inside the AWS cloud and its services
+   ([Amazon Q Developer](https://aws.amazon.com/q/developer/)).
+5. Sourcegraph Cody uses the whole codebase — including dependencies and
+   history — as context for answers and edits
+   ([Sourcegraph Cody](https://sourcegraph.com/cody)).
+6. JetBrains AI integrates assistance across the JetBrains IDE family with
+   local-model options for sensitive code
+   ([JetBrains AI](https://www.jetbrains.com/ai/)).
+7. Replit Agent aims at full-app generation from natural language, lowering
+   the barrier for non-developers
+   ([Replit](https://replit.com)).
+8. Model choice matters: most assistants now let users switch between
+   frontier models, so the assistant's workflow matters more than the model
+   ([Cursor](https://cursor.com), [GitHub Copilot](https://github.com/features/copilot)).
+
+# Detailed Analysis
+
+### The agentic shift
+
+The defining change in 2026 is the move from completion to agency. Assistants
+now take a task, plan the changes, edit several files, run the test suite and
+fix their own mistakes. Cursor's agent mode and GitHub Copilot's agent mode
+are the clearest examples, and every competitor has followed
+([Cursor](https://cursor.com), [GitHub Copilot](https://github.com/features/copilot)).
+
+### Codebase context wins
+
+Assistants that understand the whole repository — its structure, conventions
+and history — produce far more useful edits. Sourcegraph Cody and Cursor
+invest most heavily here, while Copilot leans on its deep editor integration
+([Sourcegraph Cody](https://sourcegraph.com/cody), [Cursor](https://cursor.com)).
+
+### Privacy and enterprise deployment
+
+Regulated teams care where code goes. Windsurf offers enterprise deployment
+options, and most vendors now publish explicit no-training-on-your-code
+commitments. This is a buying criterion, not a footnote, for banks,
+healthcare and government teams
+([Windsurf](https://windsurf.com), [Amazon Q Developer](https://aws.amazon.com/q/developer/)).
+
+### Pricing and model choice
+
+Per-seat subscriptions dominate, with free tiers for individuals. Because
+most tools now offer a choice of frontier models, switching costs are falling
+and teams increasingly standardise on the workflow rather than the model
+([JetBrains AI](https://www.jetbrains.com/ai/), [Replit](https://replit.com)).
+
+# Comparative Perspective
+
+Copilot leads on reach and ecosystem integration
+([GitHub Copilot](https://github.com/features/copilot)); Cursor leads on the
+AI-native editing experience ([Cursor](https://cursor.com)); Windsurf and
+Amazon Q Developer lead on enterprise and cloud-integrated deployment
+([Windsurf](https://windsurf.com), [Amazon Q Developer](https://aws.amazon.com/q/developer/));
+Cody leads on whole-codebase context
+([Sourcegraph Cody](https://sourcegraph.com/cody)); JetBrains AI leads for
+teams already living in JetBrains IDEs
+([JetBrains AI](https://www.jetbrains.com/ai/)); Replit Agent leads for
+building complete apps from a prompt ([Replit](https://replit.com)). No single
+tool wins on every axis, so the right choice depends on the team's editor,
+codebase size, privacy needs and budget.
+
+# Implications
+
+Teams choosing an assistant in 2026 should trial two or three tools on a real
+task from their own backlog rather than judging by demos. Measure how much of
+the task completes without intervention, how often the assistant's edits pass
+review and tests, and how it behaves on the team's own codebase. Procurement
+should also confirm data-handling terms in writing before rollout.
+
+# Limitations & Caveats
+
+This is a sample report generated for demonstration. Product capabilities and
+pricing change frequently; verify current details on the vendors' own pages
+before making a purchasing decision. No usage statistics or market-share
+figures are asserted here, because reliable current figures were not part of
+this sample. The comparisons reflect vendor positioning and widely reported
+capabilities, not independent hands-on benchmarking.
+
+# Sources
+
+- [GitHub Copilot](https://github.com/features/copilot)
+- [Cursor](https://cursor.com)
+- [Windsurf](https://windsurf.com)
+- [Amazon Q Developer](https://aws.amazon.com/q/developer/)
+- [Sourcegraph Cody](https://sourcegraph.com/cody)
+- [JetBrains AI](https://www.jetbrains.com/ai/)
+- [Replit](https://replit.com)
+"""
+
+
+def run_demo(dock_ph, feed_ph):
+    """Simulated crew run: agents activate in sequence, no API calls."""
+    st.session_state.agent_status = {a["id"]: "idle" for a in AGENT_DEFS}
+    st.session_state.agent_feed = []
+    st.session_state.demo_notice = True
+    for agent in AGENT_DEFS:
+        st.session_state.agent_status[agent["id"]] = "working"
+        st.session_state.agent_feed.append(f"<b>{agent['name']}</b> is now working…")
+        dock_ph.markdown(
+            render_agent_dock(st.session_state.agent_status, st.session_state.agent_feed),
+            unsafe_allow_html=True,
+        )
+        time.sleep(1.4)
+        st.session_state.agent_status[agent["id"]] = "done"
+        st.session_state.agent_feed.append(
+            f"<b>{agent['name']}</b> finished — {agent['role']} complete ✓"
+        )
+        dock_ph.markdown(
+            render_agent_dock(st.session_state.agent_status, st.session_state.agent_feed),
+            unsafe_allow_html=True,
+        )
+    st.session_state.agent_feed.append("<b>WRITER</b> finished — report ready ✓")
+    st.session_state.live_sources = [
+        {"title": "GitHub Copilot", "url": "https://github.com/features/copilot", "domain": "github.com", "published": "Sample", "snippet": "AI pair programmer in your editor."},
+        {"title": "Cursor", "url": "https://cursor.com", "domain": "cursor.com", "published": "Sample", "snippet": "The AI code editor."},
+        {"title": "Windsurf", "url": "https://windsurf.com", "domain": "windsurf.com", "published": "Sample", "snippet": "Agentic IDE for teams."},
+        {"title": "Amazon Q Developer", "url": "https://aws.amazon.com/q/developer/", "domain": "aws.amazon.com", "published": "Sample", "snippet": "AWS-integrated AI coding assistant."},
+        {"title": "Sourcegraph Cody", "url": "https://sourcegraph.com/cody", "domain": "sourcegraph.com", "published": "Sample", "snippet": "AI coding assistant with codebase context."},
+        {"title": "JetBrains AI", "url": "https://www.jetbrains.com/ai/", "domain": "jetbrains.com", "published": "Sample", "snippet": "AI in JetBrains IDEs."},
+        {"title": "Replit", "url": "https://replit.com", "domain": "replit.com", "published": "Sample", "snippet": "Build apps from a prompt."},
+    ]
+    st.session_state.messages.append({"role": "user", "content": DEMO_QUERY})
+    st.session_state.messages.append({"role": "assistant", "content": DEMO_REPORT, "demo": True})
+    st.session_state.research_history.append(
+        {"user": DEMO_QUERY, "assistant": DEMO_REPORT, "live_sources": list(st.session_state.live_sources)}
+    )
+
+
+def _split_report_sections(answer):
+    """Split a markdown report into {section title: body} by # or ## headings."""
+    parts = re.split(r"(?m)^#{1,2}\s+(.+?)\s*$", answer)
+    sections = {}
+    intro = parts[0].strip()
+    if intro:
+        sections["__intro__"] = intro
+    for i in range(1, len(parts) - 1, 2):
+        sections[parts[i].strip()] = parts[i + 1].strip()
+    return sections
+
+
+def _md_inline(text):
+    rendered = escape(text)
+    rendered = re.sub(
+        r"\[([^\]]+)\]\((https?://[^)]+)\)",
+        lambda m: f'<a href="{escape(m.group(2), quote=True)}" target="_blank" rel="noopener">{escape(m.group(1))}</a>',
+        rendered,
+    )
+    rendered = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", rendered)
+    return rendered
+
+
+def _md_paragraphs(text):
+    out = []
+    buf = []
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line:
+            if buf:
+                out.append(f"<p>{' '.join(_md_inline(x) for x in buf)}</p>")
+                buf = []
+            continue
+        if line.startswith("### "):
+            if buf:
+                out.append(f"<p>{' '.join(_md_inline(x) for x in buf)}</p>")
+                buf = []
+            out.append(f'<div class="rw-h3">{escape(line[4:])}</div>')
+        elif line.startswith("# "):
+            if buf:
+                out.append(f"<p>{' '.join(_md_inline(x) for x in buf)}</p>")
+                buf = []
+            out.append(f'<div class="rw-section">{escape(line[2:])}</div>')
+        elif line.startswith("## "):
+            if buf:
+                out.append(f"<p>{' '.join(_md_inline(x) for x in buf)}</p>")
+                buf = []
+            out.append(f'<div class="rw-section">{escape(line[3:])}</div>')
+        elif re.match(r"^[-*]\s+", line):
+            if buf:
+                out.append(f"<p>{' '.join(_md_inline(x) for x in buf)}</p>")
+                buf = []
+            out.append(f"<ul><li>{_md_inline(re.sub(r'^[-*]\s+', '', line))}</li></ul>")
+        elif re.match(r"^\d+\.\s+", line):
+            buf.append(line)
+        else:
+            buf.append(line)
+    if buf:
+        out.append(f"<p>{' '.join(_md_inline(x) for x in buf)}</p>")
+    return "".join(out)
+
+
+def _numbered_findings(body):
+    """Numbered findings, keeping wrapped continuation lines (and their citations)."""
+    items = []
+    current = None
+    for line in body.splitlines():
+        m = re.match(r"^(\d+)\.\s+(.*)", line.strip())
+        if m:
+            if current is not None:
+                items.append(current)
+            current = m.group(2).strip()
+        elif current is not None and line.strip():
+            current += " " + line.strip()
+    if current is not None:
+        items.append(current)
+    return items
+
+
+def render_report_window(answer, query, key_prefix="latest", demo=False):
+    """Render the final report in its own dedicated glass window.
+
+    The window is one Streamlit bordered container, so the title bar, the
+    structured sections, the citation cards and the export buttons all live
+    inside a single bordered panel.
+    """
+    stamp = datetime.now().strftime("%b %d, %Y · %H:%M")
+    demo_tag = (
+        '<span style="background:#ffc46b;color:#07101d;border-radius:999px;padding:.18rem .55rem;'
+        'font-size:.62rem;font-weight:800;letter-spacing:.08em">DEMO — SAMPLE DATA, NOT LIVE RESEARCH</span>'
+        if demo else ""
+    )
+    with st.container(border=True):
+        st.markdown(
+            f'<div class="report-titlebar">'
+            f'<span class="traffic-dots"><span></span><span></span><span></span></span>'
+            f'<span class="rw-label">RESEARCH REPORT</span>'
+            f'<span class="rw-query">{escape(query)}</span>{demo_tag}'
+            f'<span class="rw-time">{stamp}</span></div>',
+            unsafe_allow_html=True,
+        )
+        sections = _split_report_sections(answer)
+        exec_text = (
+            sections.get("Executive Summary")
+            or sections.get("__intro__")
+            or ""
+        )
+        if exec_text:
+            st.markdown(
+                f'<div class="exec-box">{_md_paragraphs(exec_text)}</div>',
+                unsafe_allow_html=True,
+            )
+        findings = _numbered_findings(sections.get("Key Findings", ""))
+        if findings:
+            st.markdown('<div class="rw-section">Key Findings <span>numbered, evidence-backed</span></div>', unsafe_allow_html=True)
+            cards = "".join(
+                f'<div class="finding-card"><span class="finding-num">{i}</span><span>{_md_inline(item)}</span></div>'
+                for i, item in enumerate(findings, 1)
+            )
+            st.markdown(cards, unsafe_allow_html=True)
+        for title, body in sections.items():
+            if title in ("Executive Summary", "Key Findings", "Sources", "__intro__"):
+                continue
+            if not body:
+                continue
+            st.markdown(
+                f'<div class="rw-block"><div class="rw-section">{escape(title)}</div>'
+                f"{_md_paragraphs(body)}</div>",
+                unsafe_allow_html=True,
+            )
+        if not sections or (len(sections) == 1 and "__intro__" in sections):
+            st.markdown(answer)
+        render_source_panel(answer)
+        render_export_panel(answer, query, key_prefix=key_prefix)
 
 
 def build_pdf_report(answer, query):
@@ -974,12 +1601,14 @@ with nav_action:
 st.markdown(
     """
 <div class="hero">
-    <span class="badge">✦ CONTEXT-AWARE AGENTIC RESEARCH</span>
+    <span class="badge">✦ 4-AGENT CREW · SCOUT · ANALYST · VERIFIER · WRITER</span>
     <h1><span class="gradient-text">Research the web.<br>Keep the context.</span></h1>
     <p>
-        Ask a question, explore the findings, and continue the conversation naturally.
-        Nexus remembers the current chat session so follow-up questions can refer to
-        earlier research without starting from zero.
+        Ask a question and watch a four-agent crew go to work: SCOUT gathers live
+        sources, ANALYST finds the patterns, VERIFIER cross-checks every claim, and
+        WRITER composes your structured report. Nexus remembers the current chat
+        session so follow-up questions can refer to earlier research without
+        starting from zero.
     </p>
 </div>
 """,
@@ -1001,6 +1630,38 @@ with analytics_tab:
     render_analytics_panel()
 
 with research_tab:
+# =========================================================
+# Agent Dock + Demo mode
+# =========================================================
+    st.markdown(
+        '<div class="section-title">Agent Dock '
+        '<span style="font-size:.72rem;color:#7891a8;font-family:\'DM Sans\',sans-serif;font-weight:500">'
+        'Four specialists, one crew — watch them work</span></div>',
+        unsafe_allow_html=True,
+    )
+    dock_ph = st.empty()
+    dock_ph.markdown(
+        render_agent_dock(st.session_state.agent_status, st.session_state.agent_feed),
+        unsafe_allow_html=True,
+    )
+
+    demo_col, demo_note = st.columns([1.5, 3])
+    with demo_col:
+        demo_clicked = st.button(
+            "▶ Run demo",
+            use_container_width=True,
+        )
+    with demo_note:
+        st.markdown(
+            '<div class="small-muted" style="padding-top:.65rem">'
+            "Demo mode runs the four agents on sample data — clearly labelled, never live research.</div>",
+            unsafe_allow_html=True,
+        )
+
+    if demo_clicked:
+        run_demo(dock_ph, None)
+        st.rerun()
+
 # =========================================================
 # Existing conversation
 # =========================================================
@@ -1026,13 +1687,16 @@ with research_tab:
                 unsafe_allow_html=True,
             )
         else:
-            with st.chat_message("assistant"):
-                st.markdown(message["content"])
-                if not is_greeting(last_user_request):
-                    render_source_panel(message["content"])
-                history_turn = message_index // 2
-                if not is_greeting(last_user_request):
-                    render_export_panel(message["content"], last_user_request, key_prefix=f"history_{message_index}")
+            if is_greeting(last_user_request):
+                with st.chat_message("assistant"):
+                    st.markdown(message["content"])
+            else:
+                render_report_window(
+                    message["content"],
+                    last_user_request,
+                    key_prefix=f"history_{message_index}",
+                    demo=bool(message.get("demo")),
+                )
 
     # =========================================================
 
@@ -1062,30 +1726,18 @@ if user_request:
             st.markdown(answer)
     else:
         with st.chat_message("assistant"):
-            activity = st.empty()
-            activity.markdown('''
-            <div class="research-activity">
-                <div class="activity-step done"><span class="activity-icon">✓</span><div><strong>Understanding your request</strong><small>Connecting the question with your session context</small></div></div>
-                <div class="activity-step active"><span class="activity-spinner"></span><div><strong>Searching the web</strong><small>Finding fresh sources and checking relevant evidence</small></div></div>
-                <div class="activity-step"><span class="activity-icon muted-icon">○</span><div><strong>Preparing the answer</strong><small>Organizing findings and source links</small></div></div>
-            </div>
-            <style>
-            .research-activity{margin:.9rem 0 1.1rem;padding:1rem 1.1rem;border:1px solid rgba(148,163,184,.16);border-radius:18px;background:rgba(10,25,42,.72);backdrop-filter:blur(22px);box-shadow:0 16px 45px rgba(0,0,0,.18)}
-            .activity-step{display:flex;align-items:center;gap:.8rem;padding:.55rem .15rem;color:#71859b;transition:.2s}.activity-step+.activity-step{border-top:1px solid rgba(255,255,255,.045)}
-            .activity-step strong{display:block;color:#7d91a7;font-size:.82rem;font-weight:600}.activity-step small{display:block;color:#61758b;font-size:.7rem;margin-top:.15rem}.activity-step.active strong{color:#e7f5ff}.activity-step.active small{color:#8ea7bd}.activity-icon{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:rgba(127,240,189,.1);color:#7ff0bd;font-size:.72rem}.muted-icon{background:rgba(255,255,255,.04);color:#53677c}.activity-spinner{width:22px;height:22px;border-radius:50%;border:2px solid rgba(127,227,255,.18);border-top-color:#7fe3ff;box-shadow:0 0 14px rgba(127,227,255,.22);animation:spin .85s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
-            </style>
-            ''', unsafe_allow_html=True)
             try:
-                answer = run_research(user_request=user_request, depth=depth, report_style=report_style)
+                answer = run_research(
+                    user_request=user_request,
+                    depth=depth,
+                    report_style=report_style,
+                    dock_ph=dock_ph,
+                )
             except Exception as exc:
-                activity.markdown('<div class="activity-wrap"><span class="activity-dot" style="background:#ff7f9a;box-shadow:0 0 0 5px rgba(255,127,154,.08),0 0 18px rgba(255,127,154,.65);"></span><div><div class="activity-text">Research stopped</div><div class="activity-sub">Something went wrong while processing the request</div></div></div>', unsafe_allow_html=True)
+                st.markdown('<div class="activity-wrap"><span class="activity-dot" style="background:#ff7f9a;box-shadow:0 0 0 5px rgba(255,127,154,.08),0 0 18px rgba(255,127,154,.65);"></span><div><div class="activity-text">Research stopped</div><div class="activity-sub">Something went wrong while processing the request</div></div></div>', unsafe_allow_html=True)
                 st.error(f"Research failed: {exc}")
                 st.stop()
-            activity.markdown('<div class="activity-wrap"><span class="activity-dot" style="background:#7ff0bd;box-shadow:0 0 0 5px rgba(127,240,189,.08),0 0 18px rgba(127,240,189,.55);"></span><div><div class="activity-text">Research complete</div><div class="activity-sub">Sources reviewed and response prepared</div></div></div>', unsafe_allow_html=True)
-            st.markdown(answer)
-            if not is_greeting(user_request):
-                render_source_panel(answer)
-                render_export_panel(answer, user_request)
+            render_report_window(answer, user_request, key_prefix="latest")
 
             elapsed = (datetime.now() - started).total_seconds()
             st.caption(f"Research completed in {elapsed:.1f}s")
