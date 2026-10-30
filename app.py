@@ -1477,7 +1477,8 @@ def _md_paragraphs(text):
             if buf:
                 out.append(f"<p>{' '.join(_md_inline(x) for x in buf)}</p>")
                 buf = []
-            out.append(f"<ul><li>{_md_inline(re.sub(r'^[-*]\s+', '', line))}</li></ul>")
+            cleaned = re.sub(r'^[-*]\s+', '', line)
+            out.append(f"<ul><li>{_md_inline(cleaned)}</li></ul>")
         elif re.match(r"^\d+\.\s+", line):
             buf.append(line)
         else:
