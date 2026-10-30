@@ -1,11 +1,11 @@
 # ✦ Nexus Research AI
 
-A single-agent **agentic web research and report application** built for deployment on Streamlit Community Cloud.
+A professional **multi-agent web research and report application** built for deployment on Streamlit Community Cloud. A four-agent CrewAI crew researches every question — each agent is shown live in the Agent Dock as its own robot avatar — and the final report is delivered in a dedicated Report Window.
 
 ## Stack
 
 - Python
-- CrewAI
+- CrewAI (sequential multi-agent crew)
 - Gemini 3.5 Flash-Lite
 - Tavily Web Search
 - Streamlit
@@ -17,18 +17,49 @@ A single-agent **agentic web research and report application** built for deploym
 ```text
 User
   ↓
-Streamlit UI
+Streamlit UI — Agent Dock (SCOUT · ANALYST · VERIFIER · WRITER)
   ↓
-CrewAI Single Agent
+CrewAI sequential crew
+  SCOUT (Tavily Web Search) → ANALYST (synthesis) → VERIFIER (fact-check) → WRITER (report)
   ↓
 Gemini 3.5 Flash-Lite
   ↕
 Tavily Web Search Tool
   ↓
-Source-backed research report
+Complete, citation-backed research report in the Report Window
 ```
 
-The agent is not a fixed search pipeline. It can decide when to use the Tavily tool, refine searches, inspect returned evidence, and synthesize the final report.
+## The crew
+
+| Agent | Role | Colour | Job |
+| --- | --- | --- | --- |
+| SCOUT | Web Scout | Cyan | Runs Tavily searches, gathers live sources with exact titles and URLs |
+| ANALYST | Insight Analyst | Violet | Synthesizes evidence into patterns, comparisons and trade-offs |
+| VERIFIER | Fact Checker | Mint green | Cross-checks claims against independent sources, flags uncertainty |
+| WRITER | Report Composer | Amber | Writes the final structured report, citing only real Tavily URLs |
+
+Each agent has its own role, goal and backstory, and tasks are chained so each agent works from the previous agent's output. The Agent Dock shows every agent's live status (Idle / Working / Done) and an activity feed line as each task finishes.
+
+## Complete report structure
+
+Every report — in every style — contains all eight sections, completed:
+
+1. Executive Summary
+2. Research Scope & Method
+3. Key Findings (numbered, each with inline citations)
+4. Detailed Analysis (multiple titled subsections)
+5. Comparative Perspective
+6. Implications
+7. Limitations & Caveats
+8. Sources (every source used, with its exact URL)
+
+No finding is produced without a source behind it: every Key Finding and every substantive claim carries an inline citation to a real Tavily-returned URL, and the Verifier checks that every finding is cited. The Report Window renders the sections as distinct structured blocks, the Sources as clickable citation cards, and the Markdown / Text / HTML / PDF export buttons inside the window. PDF and HTML exports include the same citations and Sources.
+
+Detailed Report style targets a long-form 2200–3200 word report; Executive Brief keeps the same complete structure, more concise per section.
+
+## Demo mode
+
+The workspace has a **▶ Run demo** button that runs the four agents on a pre-written sample report (the AI coding assistant market in 2026) with no API calls and no keys needed. It is clearly labelled **"Demo — sample data, not live research"** in the Report Window, and it never runs automatically. Live research still requires real secrets.
 
 ## GitHub deployment
 
