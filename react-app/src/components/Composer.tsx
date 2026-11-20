@@ -1,5 +1,5 @@
 import { type RefObject } from "react";
-import { ArrowRight, Clock, Info, Star, Zap } from "lucide-react";
+import { ArrowRight, Clock, Star } from "lucide-react";
 import { AGENT_CSS_VAR, AGENT_DEFS, RECENT_RESEARCH, type RecentResearch } from "../data/demo";
 import { Segmented, type Depth, type ReportStyle } from "./TopBar";
 
@@ -7,7 +7,6 @@ export default function Composer({
   query,
   setQuery,
   onRun,
-  onRunLive,
   inputRef,
   onSelectRecent,
   depth,
@@ -18,7 +17,6 @@ export default function Composer({
   query: string;
   setQuery: (q: string) => void;
   onRun: () => void;
-  onRunLive: () => void;
   inputRef: RefObject<HTMLInputElement | null>;
   onSelectRecent: (entry: RecentResearch) => void;
   depth: Depth;
@@ -72,19 +70,6 @@ export default function Composer({
           </button>
         </div>
       </form>
-
-      {/* live research */}
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={onRunLive}
-          data-testid="composer-run-live-button"
-          className="flex h-10 items-center gap-2 rounded-xl border border-emerald/60 bg-emerald/[0.12] px-4 text-[0.85rem] font-bold text-emeraldink transition hover:bg-emerald/[0.22]"
-        >
-          <Zap size={15} strokeWidth={2.5} /> Run live research
-        </button>
-        <span className="text-[0.75rem] text-muted2">Live research uses Gemini + Tavily — needs keys in Vercel.</span>
-      </div>
 
       {/* depth + style (shown here below lg; top bar carries them on desktop) */}
       <div className="mt-3 flex flex-wrap items-center gap-4 lg:hidden">
@@ -155,12 +140,6 @@ export default function Composer({
         </ul>
       </div>
 
-      {/* demo note */}
-      <p className="mt-5 flex items-start gap-2 text-[0.75rem] leading-relaxed text-muted2">
-        <Info size={13} className="mt-0.5 shrink-0" />
-        Demo mode — the crew runs on sample data for the AI coding assistant market in 2026.
-        Live research needs Gemini + Tavily keys.
-      </p>
     </div>
   );
 }

@@ -25,7 +25,7 @@ export default function ActivityRail({
           <i
             className={`block h-2 w-2 rounded-full bg-emerald shadow-[0_0_10px_rgba(0,217,122,0.9)] ${running || anyWorking ? "animate-pulse-dot" : "opacity-60"}`}
           />
-          {running || anyWorking ? "Live" : "Idle"}
+          {running || anyWorking ? "Working" : "Idle"}
         </span>
       </div>
       <div className="flex min-h-0 flex-1 flex-col px-3 py-3">

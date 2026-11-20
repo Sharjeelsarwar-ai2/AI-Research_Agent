@@ -189,6 +189,10 @@ function emptyRunState(): RunState {
 
 type TabId = "report" | "sources" | "activity";
 
+/** Outcome of a live run, so the smart Run button knows whether to fall
+ * back to the demo (keys missing) or surface an error (anything else). */
+type LiveOutcome = "ok" | "keys-missing" | "failed" | "cancelled";
+
 export default function App() {
   const [theme, setTheme] = useState<Theme>(() => resolveTheme());
   const [depth, setDepth] = useState<Depth>("Standard");
@@ -286,10 +290,13 @@ export default function App() {
 
   /** Live research: SCOUT → ANALYST → VERIFIER → WRITER via api/*.ts.
    * Each step updates the same runState the demo uses, so the rail, tabs
-   * and TOC behave identically. On keys_not_configured the guidance banner
-   * appears and the demo stays available. */
-  const runLive = useCallback(async () => {
-    if (running) return;
+   * and TOC behave identically. Returns the outcome so the smart Run
+   * button can fall back to the demo only on keys_not_configured:
+   * "ok" (live report ready), "keys-missing", "failed" (upstream or
+   * network — shown as an error, never silently swapped for the demo),
+   * "cancelled" (a newer run took over). */
+  const runLive = useCallback(async (): Promise<LiveOutcome> => {
+    if (running) return "cancelled";
     resetRun();
     const token = runTokenRef.current;
     const alive = () => runTokenRef.current === token;
@@ -308,19 +315,29 @@ export default function App() {
     const setStatus = (patch: Partial<Record<AgentId, AgentStatus>>) =>
       setRunState((s) => ({ ...s, status: { ...s.status, ...patch } }));
 
+    /** Any live failure returns to a clean idle state (no agent stuck on
+     * WORKING, no stale live label) — the banner or error explains why. */
+    const failLive = () => {
+      setRunState(emptyRunState());
+      setLiveMode(false);
+      setRunning(false);
+    };
+
     try {
       // SCOUT
       setStatus({ scout: "working" });
       pushFeed("scout", "is now working…");
       const scoutRes = await api.scout(query, depth);
-      if (!alive()) return;
+      if (!alive()) return "cancelled";
       if (isKeysError(scoutRes)) {
-        if (scoutRes.error === "keys_not_configured") setKeysBanner(true);
-        else setLiveError("Live research failed at SCOUT. Please try again.");
-        setRunning(false);
-        setLiveMode(false);
-        setRunState(emptyRunState());
-        return;
+        if (scoutRes.error === "keys_not_configured") {
+          setKeysBanner(true);
+          failLive();
+          return "keys-missing";
+        }
+        setLiveError("Live research failed at SCOUT. Please try again.");
+        failLive();
+        return "failed";
       }
       const sources = scoutRes.sources;
       setLiveSources(sources);
@@ -335,12 +352,16 @@ export default function App() {
 
       // ANALYST
       const analystRes = await api.analyst(query, depth, scoutRes.evidence);
-      if (!alive()) return;
+      if (!alive()) return "cancelled";
       if (isKeysError(analystRes)) {
-        if (analystRes.error === "keys_not_configured") setKeysBanner(true);
-        else setLiveError("Live research failed at ANALYST. Please try again.");
-        setRunning(false);
-        return;
+        if (analystRes.error === "keys_not_configured") {
+          setKeysBanner(true);
+          failLive();
+          return "keys-missing";
+        }
+        setLiveError("Live research failed at ANALYST. Please try again.");
+        failLive();
+        return "failed";
       }
       setStatus({ analyst: "done", verifier: "working" });
       pushFeed("analyst", "finished — Insight Analyst complete ✓");
@@ -348,12 +369,16 @@ export default function App() {
 
       // VERIFIER
       const verifierRes = await api.verifier(query, scoutRes.evidence, analystRes.synthesis);
-      if (!alive()) return;
+      if (!alive()) return "cancelled";
       if (isKeysError(verifierRes)) {
-        if (verifierRes.error === "keys_not_configured") setKeysBanner(true);
-        else setLiveError("Live research failed at VERIFIER. Please try again.");
-        setRunning(false);
-        return;
+        if (verifierRes.error === "keys_not_configured") {
+          setKeysBanner(true);
+          failLive();
+          return "keys-missing";
+        }
+        setLiveError("Live research failed at VERIFIER. Please try again.");
+        failLive();
+        return "failed";
       }
       const flagged = /single-sourced|flagged/i.test(verifierRes.verification);
       setRunState((s) => ({ ...s, flagged, kpis: { ...s.kpis, claims: 8 } }));
@@ -371,12 +396,16 @@ export default function App() {
         verifierRes.verification,
         sources,
       );
-      if (!alive()) return;
+      if (!alive()) return "cancelled";
       if (isKeysError(writerRes)) {
-        if (writerRes.error === "keys_not_configured") setKeysBanner(true);
-        else setLiveError("Live research failed at WRITER. Please try again.");
-        setRunning(false);
-        return;
+        if (writerRes.error === "keys_not_configured") {
+          setKeysBanner(true);
+          failLive();
+          return "keys-missing";
+        }
+        setLiveError("Live research failed at WRITER. Please try again.");
+        failLive();
+        return "failed";
       }
       const parsed = parseReportMarkdown(writerRes.report);
       const data: ReportData = parsed ?? {
@@ -399,12 +428,29 @@ export default function App() {
       pushFeed("writer", "finished — report ready ✓");
       setRunning(false);
       setDone(true);
+      return "ok";
     } catch {
-      if (!alive()) return;
+      if (!alive()) return "cancelled";
       setLiveError("Live research failed (network error). Please try again — demo mode still works.");
-      setRunning(false);
+      failLive();
+      return "failed";
     }
   }, [running, resetRun, query, depth, style]);
+
+  /** The main Run button: live research when the keys are there, the demo
+   * only when they are not. Tries live first — the server answers 503
+   * keys_not_configured before any external call, so the check costs
+   * nothing — and plays the demo (banner kept visible) on that one
+   * answer. Any other live failure is shown as an error, never silently
+   * swapped for the demo. */
+  const runPrimary = useCallback(async () => {
+    if (running) return;
+    const outcome = await runLive();
+    if (outcome === "keys-missing") {
+      runDemo();
+      setKeysBanner(true);
+    }
+  }, [running, runLive, runDemo]);
 
   const newResearch = useCallback(() => {
     timers.current.forEach((t) => window.clearTimeout(t));
@@ -537,8 +583,8 @@ export default function App() {
                     <>
                       <b>Live research is paused.</b> Add <code>GEMINI_API_KEY</code> and{" "}
                       <code>TAVILY_API_KEY</code> in Vercel → Project Settings → Environment
-                      Variables (Production), then redeploy. Demo mode below still works without
-                      keys.
+                      Variables (Production), then redeploy. Without keys, Run plays the demo
+                      on sample data.
                     </>
                   ) : (
                     <>{liveError}</>
@@ -563,8 +609,7 @@ export default function App() {
                 <Composer
                   query={query}
                   setQuery={setQuery}
-                  onRun={runDemo}
-                  onRunLive={runLive}
+                  onRun={runPrimary}
                   inputRef={composerInputRef}
                   onSelectRecent={selectRecent}
                   depth={depth}
@@ -596,17 +641,6 @@ export default function App() {
                           </button>
                         );
                       })}
-                      <span className="ml-auto hidden items-center gap-2 text-[0.68rem] font-bold uppercase tracking-[0.1em] text-muted2 sm:flex">
-                        {liveMode ? (
-                          <span className="rounded-full bg-emerald px-2 py-0.5 text-[0.6rem] text-[#06231A]">
-                            LIVE RESEARCH
-                          </span>
-                        ) : (
-                          <span className="rounded-full bg-gold px-2 py-0.5 text-[0.6rem] text-[#0A1418]">
-                            DEMO — SAMPLE DATA
-                          </span>
-                        )}
-                      </span>
                     </div>
                   </div>
 
@@ -635,7 +669,8 @@ export default function App() {
                         <h2 className="font-display text-[1.15rem] font-bold">
                           Sources{" "}
                           <span className="font-body text-[0.75rem] font-medium text-muted">
-                            {runState.visibleSources} results · Captured directly from Tavily
+                            {runState.visibleSources} results ·{" "}
+                            {liveMode ? "Captured directly from Tavily" : "Sample sources"}
                           </span>
                         </h2>
                         <div className="mt-3">
@@ -679,16 +714,10 @@ export default function App() {
         </div>
 
         {/* status bar */}
-        <footer className="flex h-8 shrink-0 items-center justify-between gap-3 border-t border-muted/[0.10] bg-panel/50 px-4 text-[0.68rem] text-muted2">
+        <footer className="flex h-8 shrink-0 items-center gap-3 border-t border-muted/[0.10] bg-panel/50 px-4 text-[0.68rem] text-muted2">
           <span className="flex min-w-0 items-center gap-1.5 truncate">
             <i className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald" />
             Crew online · Gemini 3.5 Flash-Lite · Tavily
-          </span>
-          <span className="hidden shrink-0 items-center gap-2 sm:flex">
-            <span className="rounded-full border border-teal/40 bg-teal/10 px-1.5 py-0.5 text-[0.58rem] font-extrabold tracking-[0.1em] text-tealink">
-              REACT PREVIEW
-            </span>
-            <span>{liveMode ? "Live research — Gemini + Tavily" : "Demo data — sample report, not live research"}</span>
           </span>
         </footer>
       </div>

@@ -133,7 +133,7 @@ export default function TopBar({
         {theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
       </button>
 
-      {/* run live */}
+      {/* run live (explicit live trigger; the main Run button does the same when keys are set) */}
       <button
         type="button"
         onClick={onRunLive}
@@ -146,7 +146,7 @@ export default function TopBar({
         <span className="hidden lg:inline">Run live</span>
       </button>
 
-      {/* run demo */}
+      {/* run demo — the explicit demo mode, kept as it was */}
       <button
         type="button"
         onClick={onRun}

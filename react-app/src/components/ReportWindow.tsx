@@ -235,28 +235,22 @@ export default function ReportWindow({
           </span>
           <span className="font-display text-[0.72rem] font-bold tracking-[0.14em] text-[#1E3A5F]">RESEARCH REPORT</span>
           <span className="min-w-0 flex-1 truncate text-[0.82rem] text-paperink">{query}</span>
-          {isLive ? (
-            <span className="hidden shrink-0 whitespace-nowrap rounded-full bg-emerald px-2.5 py-1 text-[0.62rem] font-extrabold tracking-[0.08em] text-[#06231A] sm:inline-block">
-              LIVE RESEARCH
-            </span>
-          ) : (
+          {/* The sample report keeps its label so it is never mistaken for
+              live research; a live report carries no badge at all. */}
+          {!isLive && (
             <span className="hidden shrink-0 whitespace-nowrap rounded-full bg-gold px-2.5 py-1 text-[0.62rem] font-extrabold tracking-[0.08em] text-[#0A1418] sm:inline-block">
               DEMO — SAMPLE DATA, NOT LIVE RESEARCH
             </span>
           )}
           <span className="hidden whitespace-nowrap text-[0.68rem] tabular-nums text-papermuted md:inline">{stamp}</span>
         </div>
-        <div className="px-3 py-1.5 sm:hidden">
-          {isLive ? (
-            <span className="inline-block rounded-full bg-emerald px-2.5 py-1 text-[0.6rem] font-extrabold tracking-[0.06em] text-[#06231A]">
-              LIVE RESEARCH
-            </span>
-          ) : (
+        {!isLive && (
+          <div className="px-3 py-1.5 sm:hidden">
             <span className="inline-block rounded-full bg-gold px-2.5 py-1 text-[0.6rem] font-extrabold tracking-[0.06em] text-[#0A1418]">
               DEMO — SAMPLE DATA, NOT LIVE RESEARCH
             </span>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* export toolbar */}
         <div className="flex flex-wrap items-center gap-2 border-b border-muted/[0.12] bg-cream/70 px-4 py-2.5">
@@ -276,9 +270,7 @@ export default function ReportWindow({
               <p className="mx-auto mt-1.5 max-w-[420px] text-[0.85rem] leading-relaxed text-papermuted">
                 {running
                   ? "Sections will appear here as WRITER composes them — SCOUT is still gathering sources."
-                  : isLive
-                    ? "Press Run live and the crew will research your question with Gemini + Tavily."
-                    : "Press Run demo and the crew will research the AI coding assistant market in 2026."}
+                  : "Press Run and the crew will research your question."}
               </p>
             </div>
           )}

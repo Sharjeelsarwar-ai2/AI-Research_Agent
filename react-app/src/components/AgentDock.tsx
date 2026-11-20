@@ -101,7 +101,7 @@ export function ActivityFeed({
     >
       {feed.length === 0 ? (
         <p className="py-2 text-[0.78rem] leading-relaxed text-muted">
-          Crew idle — press Run demo to watch the four agents work.
+          Crew idle — press Run to watch the four agents work.
         </p>
       ) : (
         <ol className="space-y-2 py-1">
