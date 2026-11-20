@@ -171,18 +171,16 @@ export default function ReportWindow({
     }
   };
 
-  /* PDF export: print with the report's own title so the saved file is
-     named after the research, not after the app shell. The print stylesheet
-     (index.css @media print) hides all app chrome, so only the report prints. */
-  const printReport = () => {
-    const prevTitle = document.title;
-    document.title = `${query} — Nexus Research`;
-    const restore = () => {
-      document.title = prevTitle;
-      window.removeEventListener("afterprint", restore);
-    };
-    window.addEventListener("afterprint", restore);
-    window.print();
+  /* PDF export: a real PDF file generated directly from the report data
+     (jsPDF, loaded on demand so it never bloats the first load). This
+     replaced window.print(): Chrome — mobile especially — writes a printed
+     page with Type 3 fonts whose glyphs do not paint in PDF viewers, so
+     the report came out as blank pages even though the text was in the
+     file. Generating the PDF here sidesteps the print pipeline entirely. */
+  const downloadPdf = async () => {
+    const { buildReportPdf, reportPdfFilename } = await import("../lib/pdf");
+    const doc = buildReportPdf({ data, query, meta, words, readMin, isLive });
+    doc.save(reportPdfFilename(query));
   };
 
   return (
@@ -272,7 +270,7 @@ export default function ReportWindow({
           <ExportButton icon={<FileText size={14} />} label="Markdown" onClick={() => download("md")} />
           <ExportButton icon={<FileCode2 size={14} />} label="Text" onClick={() => download("txt")} />
           <ExportButton icon={<Download size={14} />} label="HTML" onClick={() => download("html")} />
-          <ExportButton icon={<FileDown size={14} />} label="PDF" onClick={printReport} />
+          <ExportButton icon={<FileDown size={14} />} label="PDF" onClick={downloadPdf} />
         </div>
 
         <div className="px-4 py-5 sm:px-5">
