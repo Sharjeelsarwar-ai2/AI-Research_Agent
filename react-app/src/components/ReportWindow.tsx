@@ -202,7 +202,7 @@ export default function ReportWindow({
         <span><b className="text-ink">{data.findings.length}</b> findings</span>
       </div>
 
-      <div className="flex items-start gap-5">
+      <div className="flex items-start gap-5 print:block">
         {/* table of contents */}
         <nav aria-label="Report contents" className="sticky top-[64px] hidden w-44 shrink-0 lg:block print:hidden" data-testid="report-toc">
           <div className="mb-2 text-[0.65rem] font-extrabold uppercase tracking-[0.14em] text-muted2">Contents</div>
@@ -238,7 +238,7 @@ export default function ReportWindow({
         </nav>
 
         {/* the document */}
-        <section aria-label="Research report" className="min-w-0 flex-1">
+        <section aria-label="Research report" className="min-w-0 flex-1 print:block">
       <div className="report-paper report-frame overflow-hidden rounded-3xl border border-[#E3DECB] print:overflow-visible print:rounded-none print:border-0">
         {/* title bar */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-muted/[0.14] bg-[linear-gradient(90deg,rgba(0,217,122,0.08),rgba(0,184,169,0.05)_45%,rgba(232,163,23,0.07))] px-4 py-3.5">

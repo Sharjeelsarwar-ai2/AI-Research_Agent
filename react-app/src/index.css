@@ -230,8 +230,11 @@ body {
   /* keep the cream paper + tinted section backgrounds in the PDF */
   .report-paper, .report-paper * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
-  /* keep small blocks together; don't strand headings at a page bottom */
-  [data-testid^="finding-"] { break-inside: avoid; }
+  /* Chrome print: framer-motion leaves opacity/transform on the section
+     wrappers — force them fully visible, or the pages print blank. */
+  [id^="rsec-"] { opacity: 1 !important; transform: none !important; }
+
+  /* don't strand headings at a page bottom */
   h3, h4 { break-after: avoid; }
   p { orphans: 3; widows: 3; }
 }
