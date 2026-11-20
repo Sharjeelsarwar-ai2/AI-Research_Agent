@@ -641,6 +641,18 @@ export default function App() {
                           </button>
                         );
                       })}
+                      {/* run status — kept: shows LIVE RESEARCH while live, DEMO while demo */}
+                      <span className="ml-auto hidden items-center gap-2 text-[0.68rem] font-bold uppercase tracking-[0.1em] text-muted2 sm:flex">
+                        {liveMode ? (
+                          <span className="rounded-full bg-emerald px-2 py-0.5 text-[0.6rem] text-[#06231A]">
+                            LIVE RESEARCH
+                          </span>
+                        ) : (
+                          <span className="rounded-full bg-gold px-2 py-0.5 text-[0.6rem] text-[#0A1418]">
+                            DEMO — SAMPLE DATA
+                          </span>
+                        )}
+                      </span>
                     </div>
                   </div>
 
