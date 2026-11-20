@@ -683,7 +683,7 @@ export default function App() {
   const liveSourcesForTab: DemoSource[] = liveSources.map((s) => ({ ...s }));
 
   return (
-    <div className="app-bg flex h-dvh w-full overflow-hidden text-ink">
+    <div className="app-bg flex h-dvh w-full overflow-hidden text-ink print:block print:h-auto print:overflow-visible">
       {/* desktop sidebar */}
       <Sidebar
         collapsed={sidebarCollapsed}
@@ -726,7 +726,7 @@ export default function App() {
       )}
 
       {/* right column: top bar + workspace + status bar */}
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col print:block">
         <TopBar
           title={topTitle}
           depth={depth}
@@ -743,8 +743,8 @@ export default function App() {
           onToggleTheme={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
         />
 
-        <div className="flex min-h-0 flex-1">
-          <main id="workspace-scroll" className="min-w-0 flex-1 overflow-y-auto">
+        <div className="flex min-h-0 flex-1 print:block">
+          <main id="workspace-scroll" className="min-w-0 flex-1 overflow-y-auto print:overflow-visible">
             {/* keys / live-error guidance banner (dismissible, never a crash) */}
             {(keysBanner || liveError) && view === "research" && (
               <div
@@ -794,7 +794,7 @@ export default function App() {
               ) : (
                 <>
                   {/* tab bar */}
-                  <div className="sticky top-0 z-20 border-b border-muted/[0.12] bg-obsidian/95 backdrop-blur">
+                  <div className="sticky top-0 z-20 border-b border-muted/[0.12] bg-obsidian/95 backdrop-blur print:hidden">
                     <div role="tablist" aria-label="Research views" className="flex items-center gap-1 px-3 sm:px-5">
                       {tabs.map((t) => {
                         const active = tab === t.id;

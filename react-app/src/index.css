@@ -204,3 +204,34 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ---- print: the PDF export (window.print) renders ONLY the report ----
+   Without this the browser printed the whole app shell (sidebar, top bar,
+   tabs, export buttons, status bar) and cut the scrollable report after
+   the first screen. Print hides every piece of chrome, unconstrains the
+   shell so the full report flows across pages, and keeps the cream paper
+   + tinted section backgrounds in the PDF. */
+@media print {
+  @page { margin: 14mm; }
+
+  html, body { background: #ffffff !important; }
+
+  /* unconstrain the app shell so the whole report flows across pages */
+  .app-bg { display: block !important; height: auto !important; overflow: visible !important; }
+  #workspace-scroll { overflow: visible !important; height: auto !important; }
+
+  /* hide every piece of app chrome: sidebar, top bar, rail, status bar, banners */
+  aside, header, footer, [role="alert"] { display: none !important; }
+
+  /* the report paper becomes a plain document: no clipping, no frame */
+  .report-paper { overflow: visible !important; background: #FFFDF6 !important; }
+  .report-frame { overflow: visible !important; border: none !important; border-radius: 0 !important; box-shadow: none !important; }
+
+  /* keep the cream paper + tinted section backgrounds in the PDF */
+  .report-paper, .report-paper * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  /* keep small blocks together; don't strand headings at a page bottom */
+  [data-testid^="finding-"] { break-inside: avoid; }
+  h3, h4 { break-after: avoid; }
+  p { orphans: 3; widows: 3; }
+}

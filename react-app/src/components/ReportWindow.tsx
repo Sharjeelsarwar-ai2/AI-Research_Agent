@@ -171,6 +171,20 @@ export default function ReportWindow({
     }
   };
 
+  /* PDF export: print with the report's own title so the saved file is
+     named after the research, not after the app shell. The print stylesheet
+     (index.css @media print) hides all app chrome, so only the report prints. */
+  const printReport = () => {
+    const prevTitle = document.title;
+    document.title = `${query} — Nexus Research`;
+    const restore = () => {
+      document.title = prevTitle;
+      window.removeEventListener("afterprint", restore);
+    };
+    window.addEventListener("afterprint", restore);
+    window.print();
+  };
+
   return (
     <div data-testid="report-window">
       {/* document meta line */}
@@ -190,7 +204,7 @@ export default function ReportWindow({
 
       <div className="flex items-start gap-5">
         {/* table of contents */}
-        <nav aria-label="Report contents" className="sticky top-[64px] hidden w-44 shrink-0 lg:block" data-testid="report-toc">
+        <nav aria-label="Report contents" className="sticky top-[64px] hidden w-44 shrink-0 lg:block print:hidden" data-testid="report-toc">
           <div className="mb-2 text-[0.65rem] font-extrabold uppercase tracking-[0.14em] text-muted2">Contents</div>
           <ol className="space-y-0.5">
             {SECTIONS.map((s) => {
@@ -225,7 +239,7 @@ export default function ReportWindow({
 
         {/* the document */}
         <section aria-label="Research report" className="min-w-0 flex-1">
-      <div className="report-paper report-frame overflow-hidden rounded-3xl border border-[#E3DECB]">
+      <div className="report-paper report-frame overflow-hidden rounded-3xl border border-[#E3DECB] print:overflow-visible print:rounded-none print:border-0">
         {/* title bar */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-muted/[0.14] bg-[linear-gradient(90deg,rgba(0,217,122,0.08),rgba(0,184,169,0.05)_45%,rgba(232,163,23,0.07))] px-4 py-3.5">
           <span className="flex gap-1.5" aria-hidden="true">
@@ -253,12 +267,12 @@ export default function ReportWindow({
         )}
 
         {/* export toolbar */}
-        <div className="flex flex-wrap items-center gap-2 border-b border-muted/[0.12] bg-cream/70 px-4 py-2.5">
+        <div className="flex flex-wrap items-center gap-2 border-b border-muted/[0.12] bg-cream/70 px-4 py-2.5 print:hidden">
           <span className="text-[0.68rem] font-extrabold uppercase tracking-[0.12em] text-papermuted">Export</span>
           <ExportButton icon={<FileText size={14} />} label="Markdown" onClick={() => download("md")} />
           <ExportButton icon={<FileCode2 size={14} />} label="Text" onClick={() => download("txt")} />
           <ExportButton icon={<Download size={14} />} label="HTML" onClick={() => download("html")} />
-          <ExportButton icon={<FileDown size={14} />} label="PDF" onClick={() => window.print()} />
+          <ExportButton icon={<FileDown size={14} />} label="PDF" onClick={printReport} />
         </div>
 
         <div className="px-4 py-5 sm:px-5">
