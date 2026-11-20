@@ -76,6 +76,32 @@ plan, the fix is a Pro plan (up to 300s) — not a longer single call.
 | `TAVILY_API_KEY` | yes, for live | — | Tavily API key |
 | `GEMINI_MODEL` | no | `gemini-3.5-flash-lite` | Gemini model for analyst/verifier/writer |
 | `MAX_SEARCH_RESULTS` | no | `6` | Tavily `max_results` (clamped to 12) |
+| `SUPABASE_URL` | no | — | Supabase project URL (history database) |
+| `SUPABASE_SERVICE_ROLE_KEY` | no | — | Supabase **service-role** key — server only, never the anon key |
+
+## History — saved reports (Supabase)
+
+Every finished run (live or demo) is saved automatically, and the sidebar
+Recent list + History page show your real reports, newest first — select one
+to reopen its full report. Star a report to keep it under Saved reports;
+the trash icon deletes it (with a confirm).
+
+Setup (once):
+
+1. supabase.com → New project (free tier, no card).
+2. SQL Editor → paste `supabase/reports.sql` → Run. It creates the
+   `reports` table with Row Level Security on and **no public policies** —
+   only the service-role key can read/write.
+3. Project Settings → API → copy the Project URL and the **service-role**
+   key into Vercel → Environment Variables (Production) as `SUPABASE_URL`
+   and `SUPABASE_SERVICE_ROLE_KEY`, then redeploy.
+
+Until the keys are set, `GET /api/history` answers `503
+supabase_not_configured` and the app keeps history on-device
+(`localStorage`, key `nexus-history-v1`, 50 reports max) — the demo report
+is saved once only, not once per run. API: `api/history.ts`
+(`GET` list / `GET ?id=` one / `POST` save / `PATCH ?id=` star /
+`DELETE ?id=` delete).
 
 ## Deploy to Vercel
 

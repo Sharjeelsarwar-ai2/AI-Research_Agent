@@ -11,6 +11,7 @@ import LibraryView from "./components/LibraryView";
 import {
   AGENT_CSS_VAR,
   DEMO_QUERY,
+  DEMO_REPORT_MD,
   DEMO_SOURCES,
   RECENT_RESEARCH,
   type AgentId,
@@ -20,7 +21,18 @@ import {
   type ReportData,
 } from "./data/demo";
 import { api, isKeysError, type LiveSource } from "./lib/live";
-import { parseReportMarkdown } from "./lib/report";
+import { countWords, parseReportMarkdown } from "./lib/report";
+import {
+  deleteReport,
+  loadHistory,
+  loadReport,
+  readCacheEntries,
+  saveReport,
+  toggleSaved,
+  type HistoryEntry,
+  type HistorySource,
+  type SavePayload,
+} from "./lib/history";
 import { applyTheme, resolveTheme, type Theme } from "./lib/theme";
 
 const IDLE_STATUS: Record<AgentId, AgentStatus> = { scout: "idle", analyst: "idle", verifier: "idle", writer: "idle" };
@@ -189,6 +201,15 @@ function emptyRunState(): RunState {
 
 type TabId = "report" | "sources" | "activity";
 
+/** "Nov 20, 2026 · 11:28" — the stamp shown on a report. */
+function nowStamp(): string {
+  return (
+    new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) +
+    " · " +
+    new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
+  );
+}
+
 /** Outcome of a live run, so the smart Run button knows whether to fall
  * back to the demo (keys missing) or surface an error (anything else). */
 type LiveOutcome = "ok" | "keys-missing" | "failed" | "cancelled";
@@ -206,6 +227,13 @@ export default function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [query, setQuery] = useState(DEMO_QUERY);
+  // Saved-report history (Supabase via /api/history, device cache fallback).
+  const [history, setHistory] = useState<HistoryEntry[]>(() => readCacheEntries());
+  const historyRef = useRef(history);
+  const [historySource, setHistorySource] = useState<HistorySource>("local");
+  // Stamp shown on the open report ("Nov 20, 2026 · 11:28"); null = the
+  // app-open stamp below. Set to the saved report's own date on reopen.
+  const [reportStamp, setReportStamp] = useState<string | null>(null);
   // Live research (api/*.ts) reuses the same runState shape as the demo.
   const [liveMode, setLiveMode] = useState(false);
   const [liveSources, setLiveSources] = useState<LiveSource[]>([]);
@@ -226,6 +254,27 @@ export default function App() {
   useEffect(() => {
     applyTheme(theme);
   }, [theme]);
+
+  useEffect(() => {
+    historyRef.current = history;
+  }, [history]);
+
+  // Load real history on open (database first, device cache if the
+  // database is not configured yet). Instant paint comes from the cache
+  // via the useState initializer above.
+  useEffect(() => {
+    let alive = true;
+    loadHistory()
+      .then(({ entries, source }) => {
+        if (!alive) return;
+        setHistory(entries);
+        setHistorySource(source);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => () => timers.current.forEach((t) => window.clearTimeout(t)), []);
 
@@ -262,6 +311,36 @@ export default function App() {
     setRunStartedAt(Date.now());
   }, []);
 
+  /** Persist a finished run to history (database, device cache as the
+   * fallback). The demo is one fixed sample — keep a single copy of it. */
+  const persistRun = useCallback(async (payload: SavePayload) => {
+    if (
+      payload.mode === "demo" &&
+      historyRef.current.some((h) => h.mode === "demo" && h.question === payload.question)
+    ) {
+      return;
+    }
+    const entry = await saveReport(payload);
+    if (!entry) return;
+    setHistory((h) => [entry, ...h.filter((x) => x.id !== entry.id)].slice(0, 50));
+  }, []);
+
+  const saveDemoRun = useCallback(() => {
+    const fs = finalState();
+    setReportStamp(nowStamp());
+    void persistRun({
+      title: RECENT_RESEARCH[0].title,
+      question: DEMO_QUERY,
+      mode: "demo",
+      depth,
+      style,
+      words: countWords(DEMO_REPORT_MD),
+      sources: DEMO_SOURCES.length,
+      findings: 8,
+      data: { md: null, sources: [], kpis: fs.kpis, flagged: fs.flagged },
+    });
+  }, [persistRun, depth, style]);
+
   const runDemo = useCallback(() => {
     resetRun();
     setRunning(true);
@@ -270,6 +349,7 @@ export default function App() {
       setRunState(finalState());
       setDone(true);
       setRunning(false);
+      saveDemoRun();
       return;
     }
 
@@ -282,11 +362,12 @@ export default function App() {
         if (ev === TIMELINE[TIMELINE.length - 1]) {
           setRunning(false);
           setDone(true);
+          saveDemoRun();
         }
       }, ev.at);
       timers.current.push(id);
     });
-  }, [reducedMotion, resetRun]);
+  }, [reducedMotion, resetRun, saveDemoRun]);
 
   /** Live research: SCOUT → ANALYST → VERIFIER → WRITER via api/*.ts.
    * Each step updates the same runState the demo uses, so the rail, tabs
@@ -428,6 +509,23 @@ export default function App() {
       pushFeed("writer", "finished — report ready ✓");
       setRunning(false);
       setDone(true);
+      setReportStamp(nowStamp());
+      void persistRun({
+        title: query.length > 80 ? `${query.slice(0, 77)}…` : query,
+        question: query,
+        mode: "live",
+        depth,
+        style,
+        words: countWords(writerRes.report),
+        sources: sources.length,
+        findings: data.findings.length,
+        data: {
+          md: writerRes.report,
+          sources,
+          kpis: { sources: sources.length, claims: 8, findings: data.findings.length, sections: 8 },
+          flagged,
+        },
+      });
       return "ok";
     } catch {
       if (!alive()) return "cancelled";
@@ -435,7 +533,7 @@ export default function App() {
       failLive();
       return "failed";
     }
-  }, [running, resetRun, query, depth, style]);
+  }, [running, resetRun, query, depth, style, persistRun]);
 
   /** The main Run button: live research when the keys are there, the demo
    * only when they are not. Tries live first — the server answers 503
@@ -465,6 +563,7 @@ export default function App() {
     setKeysBanner(false);
     setLiveError(null);
     setRunStartedAt(null);
+    setReportStamp(null);
     setQuery(DEMO_QUERY);
     setView("research");
     setTab("report");
@@ -472,11 +571,90 @@ export default function App() {
     window.setTimeout(() => composerInputRef.current?.focus(), 0);
   }, []);
 
-  const selectRecent = useCallback((entry: RecentResearch) => {
-    setQuery(entry.question);
+  /** Reopen a saved report from history — restores the report view exactly
+   * as it was (live reports re-parse their saved markdown, the demo report
+   * renders from the app's static data). Falls back to filling the question
+   * when the full report cannot be loaded. */
+  const openSaved = useCallback(async (entry: HistoryEntry) => {
+    const saved = await loadReport(entry.id);
+    if (!saved) {
+      setQuery(entry.question);
+      setView("research");
+      setMobileNavOpen(false);
+      window.setTimeout(() => composerInputRef.current?.focus(), 0);
+      return;
+    }
+    timers.current.forEach((t) => window.clearTimeout(t));
+    timers.current = [];
+    runTokenRef.current += 1;
+    setQuery(saved.question);
+    setDepth(saved.depth as Depth);
+    setStyle(saved.style as ReportStyle);
+    setReportStamp(saved.date);
+    if (saved.mode === "live" && saved.data.md) {
+      const parsed = parseReportMarkdown(saved.data.md);
+      const data: ReportData = parsed ?? {
+        execSummary: [[saved.data.md.slice(0, 4000)]],
+        scope: [],
+        findings: [],
+        analysis: [],
+        comparative: [],
+        implications: [],
+        limitations: [],
+        sources: saved.data.sources.map((s) => ({ label: s.title, url: s.url })),
+      };
+      setLiveReport({ data, md: saved.data.md });
+      setLiveSources(saved.data.sources);
+      setRunState({
+        status: { scout: "done", analyst: "done", verifier: "done", writer: "done" },
+        feed: [],
+        visibleSources: saved.data.sources.length,
+        visibleSections: 8,
+        flagged: saved.data.flagged,
+        kpis: saved.data.kpis,
+      });
+      setLiveMode(true);
+    } else {
+      setRunState(finalState());
+      setLiveMode(false);
+      setLiveReport(null);
+      setLiveSources([]);
+    }
+    setRunning(false);
+    setDone(true);
+    setKeysBanner(false);
+    setLiveError(null);
+    setRunStartedAt(null);
     setView("research");
+    setTab("report");
     setMobileNavOpen(false);
-    window.setTimeout(() => composerInputRef.current?.focus(), 0);
+  }, []);
+
+  const selectRecent = useCallback(
+    (entry: RecentResearch) => {
+      // A history entry (has an id) reopens its saved report; a plain
+      // example question (composer suggestions) just fills the composer.
+      if ("id" in entry && typeof entry.id === "string" && entry.id) {
+        void openSaved(entry as HistoryEntry);
+        return;
+      }
+      setQuery(entry.question);
+      setView("research");
+      setMobileNavOpen(false);
+      window.setTimeout(() => composerInputRef.current?.focus(), 0);
+    },
+    [openSaved],
+  );
+
+  const handleToggleSaved = useCallback(async (id: string, saved: boolean) => {
+    const ok = await toggleSaved(id, saved);
+    if (ok) setHistory((h) => h.map((e) => (e.id === id ? { ...e, saved } : e)));
+  }, []);
+
+  const handleDeleteReport = useCallback(async (id: string) => {
+    if (!window.confirm("Delete this report from history?")) return;
+    const ok = await deleteReport(id);
+    if (ok) setHistory((h) => h.filter((e) => e.id !== id));
   }, []);
 
   const idle = !running && !done;
@@ -494,13 +672,7 @@ export default function App() {
           ? "Saved reports"
           : "Sources";
 
-  const stamp = useMemo(
-    () =>
-      new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) +
-      " · " +
-      new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }),
-    [],
-  );
+  const stamp = useMemo(() => nowStamp(), []);
 
   const tabs: { id: TabId; label: string }[] = [
     { id: "report", label: "Report" },
@@ -522,6 +694,7 @@ export default function App() {
           setMobileNavOpen(false);
         }}
         onNewResearch={newResearch}
+        history={history}
         onSelectRecent={selectRecent}
         className="hidden shrink-0 lg:flex"
       />
@@ -544,6 +717,7 @@ export default function App() {
                 setMobileNavOpen(false);
               }}
               onNewResearch={newResearch}
+              history={history}
               onSelectRecent={selectRecent}
               onCloseMobile={() => setMobileNavOpen(false)}
             />
@@ -662,7 +836,7 @@ export default function App() {
                         visibleSections={runState.visibleSections}
                         flagged={runState.flagged}
                         reducedMotion={reducedMotion}
-                        stamp={stamp}
+                        stamp={reportStamp ?? stamp}
                         running={running}
                         meta={{
                           sources: runState.kpis.sources,
@@ -712,7 +886,15 @@ export default function App() {
                 </>
               )
             ) : (
-              <LibraryView view={view} onSelectRecent={selectRecent} reducedMotion={reducedMotion} />
+              <LibraryView
+                view={view}
+                history={history}
+                historySource={historySource}
+                onSelectRecent={selectRecent}
+                onToggleSaved={handleToggleSaved}
+                onDeleteReport={handleDeleteReport}
+                reducedMotion={reducedMotion}
+              />
             )}
           </main>
 

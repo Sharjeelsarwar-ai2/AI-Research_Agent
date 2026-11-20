@@ -10,6 +10,8 @@
 export interface ApiRequest {
   method?: string;
   body?: unknown;
+  /** URL query params (?id=…); Vercel provides this, the verify harness fills it. */
+  query?: Record<string, string>;
 }
 
 export interface ApiResponse {
@@ -52,6 +54,54 @@ export function geminiKey(): string | undefined {
   return process.env.GEMINI_API_KEY || undefined;
 }
 
+export function supabaseUrl(): string | undefined {
+  return process.env.SUPABASE_URL || undefined;
+}
+
+/** Service-role key — server ONLY. Never in the browser, never in code.
+ * It bypasses Row Level Security, so every Supabase call goes through
+ * these api routes and the anon key is never used. */
+export function supabaseServiceKey(): string | undefined {
+  return process.env.SUPABASE_SERVICE_ROLE_KEY || undefined;
+}
+
+/** Supabase not configured: the frontend falls back to on-device history. */
+export function supabaseNotConfigured(res: ApiResponse): void {
+  send(res, 503, { error: "supabase_not_configured" });
+}
+
+interface SupabaseResult {
+  ok: boolean;
+  status: number;
+  text: string;
+}
+
+/** One PostgREST call (Supabase REST) with the service-role key.
+ * `path` is the table + query string, e.g. "reports?select=id&order=created_at.desc". */
+export async function supabaseRest(
+  path: string,
+  method: string,
+  body?: unknown,
+): Promise<SupabaseResult> {
+  const url = `${supabaseUrl()}/rest/v1/${path}`;
+  const headers: Record<string, string> = {
+    apikey: supabaseServiceKey() as string,
+    Authorization: `Bearer ${supabaseServiceKey()}`,
+    "Content-Type": "application/json",
+    Prefer: "return=representation",
+  };
+  // GET/HEAD must not carry a body — fetch throws if one is set.
+  const init: { method: string; headers: Record<string, string>; body?: string } = { method, headers };
+  if (body !== undefined) init.body = JSON.stringify(body);
+  let res;
+  try {
+    res = await fetchFn()(url, init);
+  } catch {
+    throw new UpstreamError("supabase_unreachable");
+  }
+  return { ok: res.ok, status: res.status, text: await res.text() };
+}
+
 export function tavilyKey(): string | undefined {
   return process.env.TAVILY_API_KEY || undefined;
 }
@@ -67,7 +117,7 @@ export function maxSearchResults(): number {
 
 type FetchFn = (
   url: string,
-  init: { method: string; headers: Record<string, string>; body: string },
+  init: { method: string; headers: Record<string, string>; body?: string },
 ) => Promise<{ ok: boolean; status: number; text: () => Promise<string> }>;
 
 function fetchFn(): FetchFn {

@@ -1,5 +1,5 @@
 import { Bookmark, ChevronsLeft, ChevronsRight, Clock, Globe, History, Plus, Search, Settings, Star, X } from "lucide-react";
-import { RECENT_RESEARCH, type RecentResearch } from "../data/demo";
+import type { HistoryEntry } from "../lib/history";
 
 export type NavView = "research" | "history" | "saved" | "sources";
 
@@ -16,6 +16,7 @@ export default function Sidebar({
   view,
   onSelectView,
   onNewResearch,
+  history,
   onSelectRecent,
   onCloseMobile,
   className = "",
@@ -25,7 +26,8 @@ export default function Sidebar({
   view: NavView;
   onSelectView: (v: NavView) => void;
   onNewResearch: () => void;
-  onSelectRecent: (entry: RecentResearch) => void;
+  history: HistoryEntry[];
+  onSelectRecent: (entry: HistoryEntry) => void;
   onCloseMobile?: () => void;
   className?: string;
 }) {
@@ -95,32 +97,45 @@ export default function Sidebar({
         })}
       </nav>
 
-      {/* recent research */}
+      {/* recent research — real saved history, newest first */}
       {!collapsed && (
         <div className="mt-4 min-h-0 flex-1 overflow-y-auto px-3">
           <div className="mb-1.5 px-1 text-[0.65rem] font-extrabold uppercase tracking-[0.14em] text-muted2">
             Recent research
           </div>
-          <ul className="space-y-0.5">
-            {RECENT_RESEARCH.map((entry) => (
-              <li key={entry.title}>
-                <button
-                  type="button"
-                  onClick={() => onSelectRecent(entry)}
-                  title={entry.question}
-                  className="group flex w-full flex-col gap-0.5 rounded-xl px-2.5 py-2 text-left transition hover:bg-ink/[0.05]"
-                >
-                  <span className="flex items-center gap-1.5 truncate text-[0.82rem] font-semibold text-ink">
-                    <span className="truncate">{entry.title}</span>
-                    {entry.saved && <Star size={11} className="shrink-0 fill-goldtext text-goldtext" />}
-                  </span>
-                  <span className="flex items-center gap-1 text-[0.68rem] text-muted2">
-                    <Clock size={10} /> {entry.date} · {entry.words.toLocaleString()} words · {entry.sources} sources
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
+          {history.length === 0 ? (
+            <p className="px-1 text-[0.75rem] leading-relaxed text-muted2">
+              No reports yet — your finished research will appear here.
+            </p>
+          ) : (
+            <ul className="space-y-0.5">
+              {history.map((entry) => (
+                <li key={entry.id}>
+                  <button
+                    type="button"
+                    onClick={() => onSelectRecent(entry)}
+                    title={entry.question}
+                    className="group flex w-full flex-col gap-0.5 rounded-xl px-2.5 py-2 text-left transition hover:bg-ink/[0.05]"
+                  >
+                    <span className="flex items-center gap-1.5 truncate text-[0.82rem] font-semibold text-ink">
+                      <span className="truncate">{entry.title}</span>
+                      {entry.saved && <Star size={11} className="shrink-0 fill-goldtext text-goldtext" />}
+                      <span
+                        className={`shrink-0 rounded-full px-1.5 py-px text-[0.58rem] font-extrabold uppercase tracking-wide ${
+                          entry.mode === "live" ? "bg-emerald text-[#06231A]" : "bg-gold text-[#0A1418]"
+                        }`}
+                      >
+                        {entry.mode === "live" ? "Live" : "Demo"}
+                      </span>
+                    </span>
+                    <span className="flex items-center gap-1 text-[0.68rem] text-muted2">
+                      <Clock size={10} /> {entry.date} · {entry.words.toLocaleString()} words · {entry.sources} sources
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
 
