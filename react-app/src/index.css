@@ -1,0 +1,206 @@
+@import url('https://fonts.googleapis.com/css2?family=EB+Garamond:wght@500;600;700;800&family=Inter:wght@400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+/* ---- Midnight Institutional, STRONG accents: vivid jade, azure,
+   rich amber and saturated teal on the dark petrol base.
+   No violet, no blue-purple gradients, no pastel washes.
+   Light theme ("Ivory & Navy") is defined below via data-theme. ---- */
+
+/* Theme variables. Dark is the default and is UNCHANGED from the approved
+   preview; light deepens the agent colours so small text stays readable. */
+:root,
+:root[data-theme="dark"] {
+  --obsidian: #0A1418;
+  --bg0: #060E11;
+  --panel: #101F26;
+  --panel2: #132229;
+  --ink: #EDF2EC;
+  --muted: #93A5A0;
+  --muted2: #6E857E;
+  --emerald: #00D97A;
+  --emeraldsoft: #5CF0A0;
+  --emerald-ink: #00D97A;
+  --teal: #00B8A9;
+  --teal-ink: #00B8A9;
+  --gold: #E8A317;
+  --goldtext: #F5B83D;
+  --steel: #4DA3FF;
+  --steel-ink: #4DA3FF;
+  --navy: #1E3A5F;
+  --cream: #FFFDF6;
+  --cream2: #F7F5EC;
+  --paperink: #1B2530;
+  --paperink2: #11161D;
+  --papermuted: #5B6472;
+  /* Agent colours as used for TEXT / small accents (theme-aware). */
+  --agent-scout: #00D97A;
+  --agent-analyst: #4DA3FF;
+  --agent-verifier: #E8A317;
+  --agent-writer: #00B8A9;
+  /* Text on a solid agent-colour fill (status pills). */
+  --on-agent: #0A1418;
+  --glow-1: rgba(0, 217, 122, .12);
+  --glow-2: rgba(232, 163, 23, .14);
+  --glow-3: rgba(0, 184, 169, .10);
+  --glow-4: rgba(77, 163, 255, .10);
+  --grid-line: rgba(255, 255, 255, .018);
+}
+
+:root[data-theme="light"] {
+  --obsidian: #FFFFFF;
+  --bg0: #F7F5EF;
+  --panel: #FFFFFF;
+  --panel2: #F1EFE6;
+  --ink: #101828;
+  --muted: #5B6472;
+  --muted2: #667085;
+  --emerald: #00D97A;
+  --emeraldsoft: #5CF0A0;
+  --emerald-ink: #00875A;
+  --teal: #00B8A9;
+  --teal-ink: #0B7C6E;
+  --gold: #E8A317;
+  --goldtext: #B45309;
+  --steel: #4DA3FF;
+  --steel-ink: #1D6FE0;
+  --navy: #1E3A5F;
+  --cream: #FFFDF6;
+  --cream2: #F7F5EC;
+  --paperink: #1B2530;
+  --paperink2: #11161D;
+  --papermuted: #5B6472;
+  /* Deepened agent colours for light backgrounds (small text stays readable). */
+  --agent-scout: #00875A;
+  --agent-analyst: #1D6FE0;
+  --agent-verifier: #B45309;
+  --agent-writer: #0B7C6E;
+  --on-agent: #FFFFFF;
+  --glow-1: rgba(0, 135, 90, .07);
+  --glow-2: rgba(180, 83, 9, .06);
+  --glow-3: rgba(11, 124, 110, .06);
+  --glow-4: rgba(29, 111, 224, .05);
+  --grid-line: rgba(16, 24, 40, .035);
+}
+
+@theme {
+  --color-obsidian: var(--obsidian);
+  --color-bg0: var(--bg0);
+  --color-panel: var(--panel);
+  --color-panel2: var(--panel2);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-muted2: var(--muted2);
+  --color-emerald: var(--emerald);
+  --color-emeraldsoft: var(--emeraldsoft);
+  --color-emeraldink: var(--emerald-ink);
+  --color-teal: var(--teal);
+  --color-tealink: var(--teal-ink);
+  --color-gold: var(--gold);
+  --color-goldtext: var(--goldtext);
+  --color-steel: var(--steel);
+  --color-steelink: var(--steel-ink);
+  --color-navy: var(--navy);
+  --color-cream: var(--cream);
+  --color-cream2: var(--cream2);
+  --color-paperink: var(--paperink);
+  --color-paperink2: var(--paperink2);
+  --color-papermuted: var(--papermuted);
+  --font-body: "Inter", system-ui, "Segoe UI", Roboto, sans-serif;
+  --font-display: "EB Garamond", Georgia, serif;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--bg0);
+  color: var(--ink);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+::selection {
+  background: rgba(0, 217, 122, .38);
+  color: #06231A;
+}
+
+:focus-visible {
+  outline: 2px solid var(--emerald-ink);
+  outline-offset: 2px;
+}
+
+/* ---- background mesh + grid ---- */
+.app-bg {
+  background:
+    radial-gradient(1000px 560px at 6% -10%, var(--glow-1), transparent 60%),
+    radial-gradient(900px 560px at 98% 0%, var(--glow-2), transparent 62%),
+    radial-gradient(820px 520px at 88% 108%, var(--glow-3), transparent 65%),
+    radial-gradient(700px 480px at 8% 105%, var(--glow-4), transparent 60%),
+    var(--bg0);
+}
+.app-bg::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: linear-gradient(to bottom, black, transparent);
+}
+
+@keyframes pulse-dot {
+  0%, 100% { transform: scale(.85); opacity: .55; }
+  50% { transform: scale(1.15); opacity: 1; }
+}
+@keyframes bar-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -100% 0; }
+}
+@keyframes robot-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+.animate-pulse-dot { animation: pulse-dot 1.35s ease-in-out infinite; }
+.animate-pulse-fast { animation: pulse-dot 1.2s ease-in-out infinite; }
+.robot-bob { animation: robot-bob 1s ease-in-out infinite; }
+
+.working-bar {
+  background: linear-gradient(90deg, var(--ac, #00B8A9), #ffffff);
+  background-size: 200% 100%;
+  animation: bar-shimmer 1.4s linear infinite;
+}
+
+/* ---- paper / report (cream in BOTH themes) ---- */
+.report-paper {
+  background: linear-gradient(180deg, #FFFDF6, #F7F5EC);
+  color: #1B2530;
+}
+.report-paper a { color: #1E3A5F; font-weight: 650; }
+
+/* Report frame: heavy shadow on dark, lighter bordered document on light
+   so the cream paper still reads as a document, not the page. */
+.report-frame {
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.40);
+}
+:root[data-theme="light"] .report-frame {
+  border-color: #D8D2C0;
+  box-shadow: 0 20px 50px rgba(16, 24, 40, 0.16), 0 2px 8px rgba(16, 24, 40, 0.08);
+}
+
+/* thin custom scrollbar for the feed */
+.feed-scroll::-webkit-scrollbar { width: 6px; }
+.feed-scroll::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--muted) 45%, transparent); border-radius: 99px; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
